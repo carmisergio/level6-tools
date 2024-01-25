@@ -1,4 +1,5 @@
 mod args;
+mod disk_image;
 mod file;
 
 use clap::Parser;
@@ -10,7 +11,11 @@ fn main() {
 
     // Decide what command to run
     let res = match args.command {
-        args::Command::Create { input, output } => run_create_command(input, output),
+        args::Command::Create {
+            input,
+            output,
+            ignore_errors,
+        } => run_create_command(input, output, ignore_errors),
     };
 
     match res {
@@ -21,15 +26,24 @@ fn main() {
     };
 }
 
-fn run_create_command(input: PathBuf, output: PathBuf) -> Result<(), String> {
+fn run_create_command(input: PathBuf, output: PathBuf, ignore_errors: bool) -> Result<(), String> {
     // Read input file
-    let _input_data = match file::read_file(&input) {
+    let input_data = match file::read_file(&input) {
         Ok(data) => data,
         Err(err) => return Err(format!("Unable to open \"{}\": {}", input.display(), err)),
     };
 
     // Convert image
-    let generated_data: Vec<u8> = vec![b'a'; 100];
+    let generated_data = match disk_image::encode_disk_image(
+        input_data,
+        disk_image::EncodeOpts {
+            ignore_errors,
+            format: disk_image::DiskFormat::LEVEL6,
+        },
+    ) {
+        Ok(data) => data,
+        Err(err) => return Err(format!("Image conversion error: {}", err)),
+    };
 
     // Write data to output file
     match file::write_file(&output, generated_data) {

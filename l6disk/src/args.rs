@@ -17,5 +17,9 @@ pub enum Command {
 
         /// Input disk image
         output: PathBuf,
+
+        /// Ignore image conversion errors
+        #[arg(short, long, action)]
+        ignore_errors: bool,
     },
 }
