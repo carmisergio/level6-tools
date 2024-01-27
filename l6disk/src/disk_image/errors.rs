@@ -4,6 +4,8 @@ use std::fmt;
 #[derive(Debug)]
 pub enum EncodeErrorType {
     SectorDivision,
+    SectorNumber,
+    TrackEncoding(&'static str),
 }
 
 #[derive(Debug)]
@@ -19,8 +21,10 @@ impl EncodeError {
 
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let string = match self.kind {
-            EncodeErrorType::SectorDivision => "Unable to divide input image into sectors",
+        let string: String = match self.kind {
+            EncodeErrorType::SectorDivision => format!("Unable to divide input image into sectors"),
+            EncodeErrorType::SectorNumber => format!("Wrong number of sectors in input image"),
+            EncodeErrorType::TrackEncoding(msg) => format!("Track encoding error: {}", msg),
         };
 
         write!(f, "{}", string)
