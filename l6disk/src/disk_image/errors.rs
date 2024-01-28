@@ -2,33 +2,35 @@ use std::error::Error;
 use std::fmt;
 
 #[derive(Debug)]
-pub enum EncodeErrorType {
+pub enum ConvertErrorType {
     SectorDivision,
     SectorNumber,
-    TrackEncoding(&'static str),
+    DiskEncoding(String),
 }
 
 #[derive(Debug)]
-pub struct EncodeError {
-    kind: EncodeErrorType,
+pub struct ConvertError {
+    kind: ConvertErrorType,
 }
 
-impl EncodeError {
-    pub fn new(kind: EncodeErrorType) -> Self {
+impl ConvertError {
+    pub fn new(kind: ConvertErrorType) -> Self {
         Self { kind }
     }
 }
 
-impl fmt::Display for EncodeError {
+impl fmt::Display for ConvertError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let string: String = match self.kind {
-            EncodeErrorType::SectorDivision => format!("Unable to divide input image into sectors"),
-            EncodeErrorType::SectorNumber => format!("Wrong number of sectors in input image"),
-            EncodeErrorType::TrackEncoding(msg) => format!("Track encoding error: {}", msg),
+        let string: String = match &self.kind {
+            ConvertErrorType::SectorDivision => {
+                format!("Unable to divide input image into sectors")
+            }
+            ConvertErrorType::SectorNumber => format!("Wrong number of sectors in input image"),
+            ConvertErrorType::DiskEncoding(msg) => format!("Disk encoding error: {}", msg),
         };
 
         write!(f, "{}", string)
     }
 }
 
-impl Error for EncodeError {}
+impl Error for ConvertError {}
