@@ -6,6 +6,7 @@ pub enum ConvertErrorType {
     SectorDivision,
     SectorNumber,
     DiskEncoding(String),
+    RawImageCreation(String),
 }
 
 #[derive(Debug)]
@@ -27,6 +28,7 @@ impl fmt::Display for ConvertError {
             }
             ConvertErrorType::SectorNumber => format!("Wrong number of sectors in input image"),
             ConvertErrorType::DiskEncoding(msg) => format!("Disk encoding error: {}", msg),
+            ConvertErrorType::RawImageCreation(msg) => format!("Raw image creation error: {}", msg),
         };
 
         write!(f, "{}", string)

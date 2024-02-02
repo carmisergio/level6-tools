@@ -12,7 +12,7 @@ pub fn encode_disk(
 ) -> Result<Vec<Cylinder>, String> {
     let mut cylinders: Vec<Cylinder> = vec![];
 
-    println!("Encoding disk: n_sectors = {}", sectors.len());
+    // println!("Encoding disk: n_sectors = {}", sectors.len());
 
     // Encode each cylinder of the disk
     for cyl_n in 0..disk_parameters.n_cylinders {
@@ -35,7 +35,7 @@ fn encode_cylinder(
     cyl_n: u16,
 ) -> Result<Cylinder, String> {
     let mut cylinder: Cylinder = vec![];
-    println!("Encoding cylinder: {}", cyl_n);
+    // println!("Encoding cylinder: {}", cyl_n);
 
     // Encode each side of this cylinder
     for side_n in 0..disk_parameters.n_sides {
@@ -64,10 +64,10 @@ fn encode_track(
         (disk_parameters.sectors_per_track * (side_n + disk_parameters.n_sides * cyl_n)) as usize;
     let end_sector: usize = start_sector + disk_parameters.sectors_per_track as usize;
 
-    println!(
-        "Encoding track cyl_n={}, side_n={}: start_sector={}",
-        cyl_n, side_n, start_sector
-    );
+    // println!(
+    //     "Encoding track cyl_n={}, side_n={}: start_sector={}",
+    //     cyl_n, side_n, start_sector
+    // );
 
     // Encode track to appropriate format
     match disk_parameters.track_format {
@@ -114,3 +114,5 @@ pub fn calc_interleave_map(n_sectors: u16, interleave: u16) -> Vec<u16> {
 
     res
 }
+
+// TODO fix interleave function again

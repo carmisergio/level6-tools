@@ -5,7 +5,7 @@ mod file;
 use clap::Parser;
 use colored::Colorize;
 use disk_image::convert_to_raw;
-use disk_image::{ConvertOpts, DiskParameters, RawImageFormat};
+use disk_image::{ConvertOpts, DiskParameters};
 
 fn main() {
     let args = args::Args::parse();
@@ -40,7 +40,6 @@ fn run_create_command(args: args::Args) -> Result<(), String> {
         ConvertOpts {
             ignore_errors: args.ignore_errors,
             disk_parameters: DiskParameters::from_args(&args),
-            out_file_format: RawImageFormat::HFE,
         },
     ) {
         Ok(data) => data,

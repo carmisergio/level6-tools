@@ -2,17 +2,13 @@
 use super::disk_parameters::DiskParameters;
 use super::encode::encode_disk;
 use super::errors::{ConvertError, ConvertErrorType};
+use super::hfe::make_hfe_file;
 
-#[derive(Debug)]
-pub enum RawImageFormat {
-    HFE,
-}
 #[derive(Debug)]
 // Encoding options
 pub struct ConvertOpts {
     pub ignore_errors: bool,
     pub disk_parameters: DiskParameters,
-    pub out_file_format: RawImageFormat,
 }
 
 pub type ConvertResult = Result<Vec<u8>, ConvertError>;
@@ -58,14 +54,18 @@ pub fn convert_to_raw(data_img: Vec<u8>, opts: ConvertOpts) -> ConvertResult {
     }
 
     // Encode disk image to correct format
-    let _encoded_disk = match encode_disk(&sectors, &opts.disk_parameters) {
+    let encoded_cylinders = match encode_disk(&sectors, &opts.disk_parameters) {
         Ok(disk) => disk,
         Err(msg) => return Err(ConvertError::new(ConvertErrorType::DiskEncoding(msg))),
     };
 
-    let out_file_data: Vec<u8> = vec![b'b', 100];
+    // Create output raw disk image image
+    let out_data: Vec<u8> = match make_hfe_file(&encoded_cylinders, &opts.disk_parameters) {
+        Ok(data) => data,
+        Err(msg) => return Err(ConvertError::new(ConvertErrorType::RawImageCreation(msg))),
+    };
 
-    Ok(out_file_data)
+    Ok(out_data)
 }
 
 // Divide data image into vector of sectors with given size

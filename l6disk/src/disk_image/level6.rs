@@ -1,27 +1,37 @@
+use crc::{Crc, CRC_16_IBM_3740};
+
 // In-module imports
 use super::convert::{Sector, Track};
 use super::disk_parameters::DiskParameters;
 use super::encode::calc_interleave_map;
+use super::fm::{FMByte, FMBytes};
 
 // Level6 Disk format Address Marks
 #[non_exhaustive]
 struct Level6AddressMark;
 impl Level6AddressMark {
-    pub const AM1: [u8; 2] = [0b11110101, 0b01111110];
-    pub const AM2: [u8; 2] = [0b11110101, 0b01101111];
-    // pub const AM3: [u8; 2] = [0b11110101, 0b01101010];
-    pub const AM4: [u8; 2] = [0b11110111, 0b01111010];
+    pub const IAM: FMByte = FMByte {
+        data: 0xFC,
+        clock: 0xD7,
+    };
+    pub const IDAM: FMByte = FMByte {
+        data: 0xFE,
+        clock: 0xC7,
+    };
+    pub const DAM: FMByte = FMByte {
+        data: 0xFB,
+        clock: 0xC7,
+    };
 }
 
 struct Level6Gaps;
 impl Level6Gaps {
-    pub const FILL_BYTE: u8 = 0x00;
-    // pub const GAP1_LEN: usize = 46;
-    // pub const GAP2_LEN: usize = 32;
-    // pub const GAP3_LEN: usize = 17;
-    pub const GAP1_LEN: usize = 1;
-    pub const GAP2_LEN: usize = 2;
-    pub const GAP3_LEN: usize = 3;
+    pub const FILL_BYTE: u8 = 0xFF;
+    pub const GAP1_LEN: usize = 40;
+    pub const GAP2_LEN: usize = 26;
+    pub const GAP3_LEN: usize = 11;
+    pub const GAP4_LEN: usize = 27;
+    pub const GAP5_LESS: usize = 100; // Bytes of GAP5 to omit
 }
 
 // Encode one track to Level6 format
@@ -29,15 +39,15 @@ pub fn encode_track_level6(
     sectors: &[Sector],
     disk_parameters: &DiskParameters,
     cyl_n: u16,
-    side_n: u16,
+    _side_n: u16,
 ) -> Result<Track, String> {
     // Check if side number is valid
-    if side_n > 0 {
-        return Err(format!(
-            "Invalid side number for Level6 track format: {}",
-            side_n
-        ));
-    }
+    // if side_n > 0 {
+    //     return Err(format!(
+    //         "Invalid side number for Level6 track format: {}",
+    //         side_n
+    //     ));
+    // }
 
     // Compute sector interleave map
     let interleave_map = calc_interleave_map(
@@ -46,7 +56,7 @@ pub fn encode_track_level6(
     );
 
     // Track data buffer
-    let mut track: Track = vec![];
+    let mut track = FMBytes::new();
 
     // Encode track header
     track.append(&mut level6_encode_track_header());
@@ -56,11 +66,6 @@ pub fn encode_track_level6(
         // Compute interleave
         let logical_sec_n = interleave_map[phys_sec_n as usize];
 
-        println!(
-            "Encoding sector: cyl={}, phys={}, log={}",
-            cyl_n, phys_sec_n, logical_sec_n
-        );
-
         // Encode single sector
         track.append(&mut level6_encode_sector(
             &sectors[logical_sec_n as usize],
@@ -69,96 +74,103 @@ pub fn encode_track_level6(
         ));
     }
 
-    Ok(track)
+    // Fill remaining part of track
+    let remaining_bytes = (((60000) * disk_parameters.bit_rate as u64)
+        / (disk_parameters.rpm as u64 * 8)) as usize
+        - track.fm_len()
+        - Level6Gaps::GAP5_LESS;
+
+    // GAP5
+    track.add_bytes(&vec![Level6Gaps::FILL_BYTE; remaining_bytes / 2]); // divided by 2 because 1 data byte = 2 fm bytes
+
+    Ok(track.encode())
 }
 
-fn level6_encode_track_header() -> Vec<u8> {
-    let mut header: Vec<u8> = vec![];
+fn level6_encode_track_header() -> FMBytes {
+    let mut data = FMBytes::new();
 
     // Pre-Index Gap (GAP1)
-    header.append(&mut encode_fm(&vec![
-        Level6Gaps::FILL_BYTE;
-        Level6Gaps::GAP1_LEN
-    ]));
+    data.add_bytes(&[Level6Gaps::FILL_BYTE; Level6Gaps::GAP1_LEN]);
+
+    // AM4 Sync field (6 bytes)
+    data.add_bytes(&[0x00; 6]);
 
     // Index address mark (AM4)
-    header.append(&mut Level6AddressMark::AM4.to_vec());
+    data.add_fm_byte(&Level6AddressMark::IAM);
 
     // Post-Index address mark (GAP2)
-    header.append(&mut encode_fm(&vec![
-        Level6Gaps::FILL_BYTE;
-        Level6Gaps::GAP2_LEN
-    ]));
+    data.add_bytes(&[Level6Gaps::FILL_BYTE; Level6Gaps::GAP2_LEN]);
 
-    header
+    data
 }
 
-fn level6_encode_sector(sector: &Sector, track_n: u8, sector_n: u8) -> Vec<u8> {
-    let mut sec_data: Vec<u8> = vec![];
+fn level6_encode_sector(sector: &Sector, track_n: u8, sector_n: u8) -> FMBytes {
+    let mut data = FMBytes::new();
+
+    // Sector ID Sync field (6 bytes)
+    data.add_bytes(&[0x00; 6]);
+
+    // Sector ID field
+    data.append(&mut level6_encode_sector_header(
+        sector.len() as u8,
+        track_n,
+        sector_n,
+    ));
+
+    // Identifier to Data Gap (GAP3)
+    data.add_bytes(&[Level6Gaps::FILL_BYTE; Level6Gaps::GAP3_LEN]);
+
+    // AM2 Sync field (6 bytes)
+    data.add_bytes(&[0x00; 6]);
+
+    // Sector data field
+    data.append(&mut level6_encode_sector_data(sector));
+
+    // Intrer-sector Gap (GAP4)
+    data.add_bytes(&[Level6Gaps::FILL_BYTE; Level6Gaps::GAP4_LEN]);
+
+    data
+}
+
+fn level6_encode_sector_header(sector_len: u8, track_n: u8, sector_n: u8) -> FMBytes {
+    let mut header = FMBytes::new();
 
     // Sector ID address mark (AM1)
-    sec_data.append(&mut Level6AddressMark::AM1.to_vec());
+    header.add_fm_byte(&Level6AddressMark::IDAM);
 
     // Sector ID fields
     // |-- TRACK_N --|--- RSU ---|- SECTOR_N -|--- RSU ---|
     // RSU: Reserved for software use
-    sec_data.append(&mut encode_fm(&vec![track_n, 0x00, sector_n, 0x00]));
+    header.add_bytes(&[track_n, 0x00, sector_n, sector_len]);
 
-    // Sector ID EDC TODO implement
-    sec_data.append(&mut encode_fm(&vec![0xFF, 0xFF]));
+    // Compuute crc
+    let crc = Crc::<u16>::new(&CRC_16_IBM_3740);
+    let mut digest = crc.digest();
+    digest.update(&header.get_data_bytes());
 
-    // Identifier to Data Gap (GAP3)
-    sec_data.append(&mut encode_fm(&vec![
-        Level6Gaps::FILL_BYTE;
-        Level6Gaps::GAP3_LEN
-    ]));
+    // Sector ID field EDC (CRC)
+    header.add_bytes(&digest.finalize().to_be_bytes());
+    // header.add_bytes(&[0x00, 0x00]);
 
-    // Data Field address mark (AM2)
-    sec_data.append(&mut Level6AddressMark::AM2.to_vec());
-
-    // Sector data
-    sec_data.append(&mut encode_fm(sector));
-
-    // Data Field EDC TODO implement
-    sec_data.append(&mut encode_fm(&vec![0xFF, 0xFF]));
-
-    // Intrer-sector Gap (GAP2)
-    sec_data.append(&mut encode_fm(&vec![
-        Level6Gaps::FILL_BYTE;
-        Level6Gaps::GAP2_LEN
-    ]));
-
-    sec_data
+    header
 }
 
-// Encode bytes to FM
-// Interleaves the bits of the provided bytes with clock
-fn encode_fm(data: &Vec<u8>) -> Vec<u8> {
-    let mut encoded: Vec<u8> = vec![];
+fn level6_encode_sector_data(sector: &Sector) -> FMBytes {
+    let mut data = FMBytes::new();
 
-    for byte in data.iter() {
-        let mut this_byte: u8 = byte.clone();
-        let mut byte_fm: u16 = 0;
+    // Sector Data field address mark (AM1)
+    data.add_fm_byte(&Level6AddressMark::DAM);
 
-        // Shift each bit into number
-        for _ in 0..8 {
-            // Add clock bit
-            byte_fm <<= 1;
-            byte_fm |= 1;
+    // Sector data
+    data.add_bytes(&sector);
 
-            // // Add bit to right
-            byte_fm <<= 1;
-            byte_fm |= (this_byte >> 7) as u16;
+    // Compuute crc
+    let crc = Crc::<u16>::new(&CRC_16_IBM_3740);
+    let mut digest = crc.digest();
+    digest.update(&data.get_data_bytes());
 
-            // Next bit
-            this_byte <<= 1;
+    // Sector Data field EDC (CRC)
+    data.add_bytes(&digest.finalize().to_be_bytes());
 
-            // println!("{:#b}", this_byte);
-        }
-
-        // Add byte to result
-        encoded.append(&mut byte_fm.to_be_bytes().to_vec());
-    }
-
-    encoded
+    data
 }

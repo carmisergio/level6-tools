@@ -13,6 +13,8 @@ pub struct DiskParameters {
     pub sectors_per_track: u16,
     pub bytes_per_sector: u16,
     pub sector_interleave: u16,
+    pub bit_rate: u16, // In kbps
+    pub rpm: u16,
 }
 
 impl DiskParameters {
@@ -69,5 +71,7 @@ impl DiskFormatDefaults {
         sectors_per_track: 26,
         bytes_per_sector: 128,
         sector_interleave: 1,
+        bit_rate: 500,
+        rpm: 360,
     };
 }
