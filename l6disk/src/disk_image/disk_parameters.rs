@@ -2,7 +2,7 @@ use crate::args;
 
 #[derive(Debug)]
 pub enum DiskTrackFormat {
-    Level6,
+    IBM3470,
 }
 
 #[derive(Debug)]
@@ -12,9 +12,9 @@ pub struct DiskParameters {
     pub n_cylinders: u16,
     pub sectors_per_track: u16,
     pub bytes_per_sector: u16,
-    pub sector_interleave: u16,
-    pub bit_rate: u16, // In kbps
+    pub cell_rate: u16, // In kbps
     pub rpm: u16,
+    pub sector_interleave: u16,
 }
 
 impl DiskParameters {
@@ -23,6 +23,7 @@ impl DiskParameters {
         // Get default parameters for specified format
         let mut disk_pars = match args.disk_format {
             DiskFormat::LEVEL6 => DiskFormatDefaults::LEVEL6,
+            DiskFormat::IBM8DSSD => DiskFormatDefaults::IBM8DSSD,
         };
 
         // Number of cylinders
@@ -45,6 +46,16 @@ impl DiskParameters {
             disk_pars.bytes_per_sector = sector_size;
         }
 
+        // Cell rate
+        if let Some(cell_rate) = args.cell_rate {
+            disk_pars.cell_rate = cell_rate;
+        }
+
+        // Spindle RPM
+        if let Some(spindle_rpm) = args.spindle_rpm {
+            disk_pars.rpm = spindle_rpm;
+        }
+
         // Interleave
         if let Some(interleave) = args.interleave {
             disk_pars.sector_interleave = interleave;
@@ -57,6 +68,7 @@ impl DiskParameters {
 #[derive(Debug, Clone, clap::ValueEnum)]
 pub enum DiskFormat {
     LEVEL6,
+    IBM8DSSD,
 }
 
 #[non_exhaustive]
@@ -65,13 +77,24 @@ pub struct DiskFormatDefaults;
 impl DiskFormatDefaults {
     // Level6 format
     pub const LEVEL6: DiskParameters = DiskParameters {
-        track_format: DiskTrackFormat::Level6,
+        track_format: DiskTrackFormat::IBM3470,
         n_sides: 1,
         n_cylinders: 77,
         sectors_per_track: 26,
         bytes_per_sector: 128,
         sector_interleave: 1,
-        bit_rate: 500,
+        cell_rate: 500,
+        rpm: 360,
+    };
+    // IBM 8 inch double sided - single density format
+    pub const IBM8DSSD: DiskParameters = DiskParameters {
+        track_format: DiskTrackFormat::IBM3470,
+        n_sides: 2,
+        n_cylinders: 77,
+        sectors_per_track: 26,
+        bytes_per_sector: 128,
+        sector_interleave: 1,
+        cell_rate: 500,
         rpm: 360,
     };
 }

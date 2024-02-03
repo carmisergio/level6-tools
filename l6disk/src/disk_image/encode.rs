@@ -3,7 +3,7 @@ use std::vec;
 // In-module imports
 use super::convert::{Cylinder, Sector, Track};
 pub use super::disk_parameters::{DiskParameters, DiskTrackFormat};
-use super::level6::encode_track_level6;
+use super::ibm3470;
 
 // Encode all cylinders in the disk
 pub fn encode_disk(
@@ -71,7 +71,7 @@ fn encode_track(
 
     // Encode track to appropriate format
     match disk_parameters.track_format {
-        DiskTrackFormat::Level6 => encode_track_level6(
+        DiskTrackFormat::IBM3470 => ibm3470::encode_track(
             &sectors[start_sector..end_sector],
             &disk_parameters,
             cyl_n,

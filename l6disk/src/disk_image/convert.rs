@@ -49,7 +49,10 @@ pub fn convert_to_raw(data_img: Vec<u8>, opts: ConvertOpts) -> ConvertResult {
                 ]);
             }
         } else {
-            return Err(ConvertError::new(ConvertErrorType::SectorNumber));
+            return Err(ConvertError::new(ConvertErrorType::SectorNumber(
+                expected_sectors,
+                sectors.len(),
+            )));
         }
     }
 

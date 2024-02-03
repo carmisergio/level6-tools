@@ -1,6 +1,6 @@
 // In-module imports
 use super::convert::Cylinder;
-use super::disk_parameters::DiskParameters;
+use super::disk_parameters::{DiskParameters, DiskTrackFormat};
 
 const HFE_BLOCK_SIZE: usize = 512;
 const HFE_PAD_VALUE: u8 = 0x00;
@@ -25,6 +25,11 @@ pub fn make_hfe_file(
     // For each cylinder
     let mut used_blocks: u16 = 3; // File header (1 block) + Track offset lut (2 blocks)
     for cylinder in encoded_cylinders {
+        // Check if track is too big to fit in HFE file
+        if cylinder[0].len() as u16 > u16::MAX / 4 {
+            return Err(format!("Track too big for HFE file",));
+        }
+
         // Add entry to track entries
         track_offset_lut.add_track(used_blocks, cylinder[0].len() as u16 * 4); // * 2 and * 2 again because of the weird hfe encoding to keep space for 2 sides
 
@@ -109,18 +114,17 @@ fn reverse_bits(track: &[u8]) -> Vec<u8> {
     encoded
 }
 
+// Interleave side 1 and side 2 of a track as per HFE spec
 fn pack_track(cylinder: &Cylinder) -> (Vec<u8>, u16) {
     let mut data: Vec<u8> = vec![];
     let mut used_blocks: u16 = 0;
 
-    // write_file(&PathBuf::from("diag4.img"), cylinder[0].clone());
-
     // Divide tracks to parts
-    let side0_parts = track_to_parts(
+    let mut side0_parts = track_to_parts(
         do_weird_hfe_track_encoding(&cylinder[0]),
         (HFE_BLOCK_SIZE / 2) as u16,
     );
-    let side1_parts = match cylinder.len() == 2 {
+    let mut side1_parts = match cylinder.len() == 2 {
         true => track_to_parts(
             do_weird_hfe_track_encoding(&cylinder[1]),
             (HFE_BLOCK_SIZE / 2) as u16,
@@ -130,26 +134,27 @@ fn pack_track(cylinder: &Cylinder) -> (Vec<u8>, u16) {
 
     // Pack track data
     while (used_blocks as usize) < side0_parts.len() {
-        let mut side_0_part = match side0_parts.len() > used_blocks as usize {
-            true => side0_parts[used_blocks as usize].clone(),
-            false => vec![HFE_PAD_VALUE; (HFE_BLOCK_SIZE / 2) as usize],
-        };
+        // Get next side 0 part
+        data.append(&mut side0_parts[used_blocks as usize]);
 
-        data.append(&mut side_0_part);
+        // Get next side 1 part (if present)
+        if (used_blocks as usize) < side1_parts.len() {
+            // Add side 1 part
+            data.append(&mut side1_parts[used_blocks as usize]);
+        } else {
+            // Add data fill
+            let mut fill_part = vec![HFE_PAD_VALUE; (HFE_BLOCK_SIZE / 2) as usize];
+            data.append(&mut fill_part);
+        }
 
-        let mut side_1_part = match side1_parts.len() > used_blocks as usize {
-            true => side1_parts[used_blocks as usize].clone(),
-            false => vec![HFE_PAD_VALUE; (HFE_BLOCK_SIZE / 2) as usize],
-        };
-
+        // Count number of blocks used by track
         used_blocks += 1;
-
-        data.append(&mut side_1_part);
     }
 
     (data, used_blocks)
 }
 
+// Divide track into 256 byte parts as per HFE spec
 fn track_to_parts(track: Vec<u8>, part_size: u16) -> Vec<Vec<u8>> {
     let mut parts: Vec<Vec<u8>> = vec![];
 
@@ -204,8 +209,8 @@ impl HFEFileHeader {
             format_revision: 0,
             n_tracks: disk_parameters.n_cylinders as u8,
             n_sides: disk_parameters.n_sides as u8,
-            track_encoding: TrackEncoding::IsoIbmFmEncoding,
-            bit_rate: disk_parameters.bit_rate,
+            track_encoding: floppy_interface_mode_from_track_format(&disk_parameters.track_format),
+            bit_rate: disk_parameters.cell_rate,
             floppy_rpm: disk_parameters.rpm,
             floppy_interface_mode: FloppyInterfaceMode::GenericShugartDD,
             dnu: 0x01, // Unused
@@ -248,6 +253,12 @@ impl HFEFileHeader {
 enum TrackEncoding {
     IsoIbmFmEncoding = 0x02,
     UnknownEncoding = 0xFF,
+}
+
+fn floppy_interface_mode_from_track_format(track_format: &DiskTrackFormat) -> TrackEncoding {
+    match track_format {
+        DiskTrackFormat::IBM3470 => TrackEncoding::IsoIbmFmEncoding,
+    }
 }
 
 #[repr(u8)]
@@ -298,33 +309,3 @@ impl HFETrackOffsetLUTEntry {
         data
     }
 }
-
-// #[derive(Debug, Clone)]
-// struct BlockyFile {
-//     pub data: Vec<u8>,
-//     block_size: usize,
-// }
-
-// impl BlockyFile {
-//     pub fn new(block_size: usize) -> Self {
-//         Self {
-//             data: vec![],
-//             block_size,
-//         }
-//     }
-
-//     pub fn add_block(&mut self, new_data: &mut Vec<u8>) {
-//         // Check data size
-//         if new_data.len() > self.block_size {
-//             panic!("HFE file generation: too much data for one block!")
-//         }
-
-//         let data_length = new_data.len();
-
-//         self.data.append(new_data);
-
-//         // Pad block with 0
-//         self.data
-//             .append(&mut vec![0; self.block_size - data_length]);
-//     }
-// }

@@ -4,7 +4,7 @@ use std::fmt;
 #[derive(Debug)]
 pub enum ConvertErrorType {
     SectorDivision,
-    SectorNumber,
+    SectorNumber(usize, usize),
     DiskEncoding(String),
     RawImageCreation(String),
 }
@@ -26,7 +26,10 @@ impl fmt::Display for ConvertError {
             ConvertErrorType::SectorDivision => {
                 format!("Unable to divide input image into sectors")
             }
-            ConvertErrorType::SectorNumber => format!("Wrong number of sectors in input image"),
+            ConvertErrorType::SectorNumber(should_be, is) => format!(
+                "Wrong number of sectors in input image (should be {}, is {})",
+                should_be, is
+            ),
             ConvertErrorType::DiskEncoding(msg) => format!("Disk encoding error: {}", msg),
             ConvertErrorType::RawImageCreation(msg) => format!("Raw image creation error: {}", msg),
         };
