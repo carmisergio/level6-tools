@@ -62,9 +62,9 @@ l6disk tmp.img output.hfe
 
 Note the `128 byte` sector size and `2002` sectors.
 
-## Level6 diskette format
+## Level 6 diskette format
 
-The Honeywell Level6 uses standard 8-inch SS/SD floppy disks.
+The Honeywell Level 6 uses standard 8-inch SS/SD floppy disks.
 
 The track format is standard IBM3470-style FM (see [DP8473 floppy controller datasheet](https://www.wdj-consulting.com/blog/floppy-lit/DS009384.PDF) for more info )
 
