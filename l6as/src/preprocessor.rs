@@ -2,18 +2,19 @@ use nom::{
     branch::alt,
     bytes::complete::{is_a, is_not, tag, tag_no_case},
     character::complete::{alphanumeric1, space0, space1},
-    combinator::map,
+    combinator::{map, opt},
+    error::{ErrorKind, ParseError},
     multi::{many1, separated_list0},
-    sequence::{delimited, pair, tuple},
-    IResult,
+    sequence::{delimited, pair, preceded},
+    Err, IResult,
 };
 use std::path::PathBuf;
 use std::vec;
 
-/*
- * TODO
- * Add custom error types to handle stuff like missing macro name, etc
- */
+use super::logging::{
+    print_preprocessor_error, print_preprocessor_warning, PreprocessorError, PreprocessorWarning,
+    PreprocessorWarningKind,
+};
 
 /////////////// RESERVED KEYWORDS ///////////////
 // const PREPRO_CHAR: char = '%';
@@ -22,6 +23,35 @@ const KEYWORD_INCLUDE: &str = "%include";
 const KEYWORD_MACRO: &str = "%macro";
 const KEYWORD_END_MACRO: &str = "%endm";
 /////////////////////////////////////////////////
+
+#[derive(Debug)]
+pub enum PreprocessorParseErrorKind {
+    IncludeMissingFilePath,
+    DefineMissingIdentifier,
+    DefineMissingValue(String),
+    MacroMissingIdentifier,
+    MacroMalformedArguments(String),
+    Nom,
+}
+
+#[derive(Debug)]
+struct PreprocessorParseError<'a> {
+    _input: &'a str,
+    kind: PreprocessorParseErrorKind,
+}
+
+impl<'a> ParseError<&'a str> for PreprocessorParseError<'a> {
+    fn from_error_kind(input: &'a str, _kind: ErrorKind) -> Self {
+        Self {
+            _input: input,
+            kind: PreprocessorParseErrorKind::Nom,
+        }
+    }
+
+    fn append(_input: &'a str, _kind: ErrorKind, other: Self) -> Self {
+        other
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum SourceLine {
@@ -32,30 +62,58 @@ pub enum SourceLine {
     Code(String),
 }
 
-/// Separates a string to a vector of strings, one per line
-pub fn parse_source_lines(input: &str) -> Result<Vec<SourceLine>, String> {
+/// Parses input source code to a vector of `SourceLine`s
+pub fn parse_source_lines(input: &str) -> Result<Vec<SourceLine>, Vec<SourceLine>> {
     let mut lines: Vec<SourceLine> = vec![];
+
+    // Keep track of if an error has been encountered
+    let mut error_encountered = false;
 
     // Get all lines from file
     for (line_n, raw_line) in input.lines().enumerate() {
         // Parse line
         let (remaining, line) = match parse_source_line(raw_line) {
             Ok(line) => line,
-            Err(_) => return Err(format!("Line division error on line {}", line_n)),
+            Err(err) => {
+                match err {
+                    Err::Failure(err) => print_preprocessor_error(PreprocessorError {
+                        line_n,
+                        file_name: PathBuf::from("test.l6s"),
+                        line: raw_line.to_owned(),
+                        kind: err.kind,
+                    }),
+                    Err::Error(_) => {}
+                    Err::Incomplete(_) => {}
+                }
+
+                // An error has been encountered
+                error_encountered = true;
+
+                continue;
+            }
         };
 
         // Check if there is still unparsed stuff
         if remaining.len() > 0 {
-            println!("Warning: garbage on end of line {}", line_n);
+            print_preprocessor_warning(PreprocessorWarning {
+                line_n,
+                file_name: PathBuf::from("test.l6s"),
+                line: raw_line.to_owned(),
+                kind: PreprocessorWarningKind::GarbageAtEndOfLine(remaining.to_owned()),
+            });
         }
 
         lines.push(line);
     }
 
-    Ok(lines)
+    // Return results
+    match error_encountered {
+        false => Ok(lines),
+        true => Err(lines),
+    }
 }
 
-fn parse_source_line(input: &str) -> IResult<&str, SourceLine> {
+fn parse_source_line(input: &str) -> IResult<&str, SourceLine, PreprocessorParseError> {
     alt((
         parse_define_line,
         parse_include_line,
@@ -66,73 +124,109 @@ fn parse_source_line(input: &str) -> IResult<&str, SourceLine> {
 }
 
 /// Parses a normal code line
-fn parse_code_line(input: &str) -> IResult<&str, SourceLine> {
+fn parse_code_line(input: &str) -> IResult<&str, SourceLine, PreprocessorParseError> {
     map(any_character, |res: &str| -> SourceLine {
         SourceLine::Code(res.to_string())
     })(input)
 }
 
 /// Parses %define directive
-fn parse_define_line(input: &str) -> IResult<&str, SourceLine> {
-    // Parse definition
-    map(
-        tuple((
-            space0,
-            tag_no_case(KEYWORD_DEFINE),
-            space1,
-            parse_identifier,
-            space0,
-            tag("="),
-            space0,
-            any_character,
-        )),
-        |(_, _, _, identifier, _, _, _, value)| SourceLine::Define(identifier, value.to_owned()),
+fn parse_define_line(input: &str) -> IResult<&str, SourceLine, PreprocessorParseError> {
+    // Match %define tag
+    let (input, _) = preceded(space0, tag_no_case(KEYWORD_DEFINE))(input)?;
+
+    // Get identifier
+    let (input, identifier) = match preceded(space1, parse_identifier)(input) {
+        Ok(res) => res,
+        Err(_) => {
+            return Err(Err::Failure(PreprocessorParseError {
+                _input: input,
+                kind: PreprocessorParseErrorKind::DefineMissingIdentifier,
+            }))
+        }
+    };
+
+    // Get value
+    let (input, value) = match preceded(
+        // Type annotation on first space0 is needed but I don't know why
+        delimited(space0::<&str, PreprocessorParseError>, tag("="), space0),
+        any_character,
     )(input)
+    {
+        Ok(res) => res,
+        Err(_) => {
+            return Err(Err::Failure(PreprocessorParseError {
+                _input: input,
+                kind: PreprocessorParseErrorKind::DefineMissingValue(identifier.to_owned()),
+            }))
+        }
+    };
+
+    Ok((input, SourceLine::Define(identifier, value.to_owned())))
 }
 
 /// Parses %include directive
-fn parse_include_line(input: &str) -> IResult<&str, SourceLine> {
-    map(
-        tuple((
-            space0,
-            tag_no_case(KEYWORD_INCLUDE),
-            space1,
-            alt((parse_string_literal, is_not(" \t"))),
-            space0,
-        )),
-        |(_, _, _, file_path, _)| SourceLine::Include(PathBuf::from(file_path)),
-    )(input)
+fn parse_include_line(input: &str) -> IResult<&str, SourceLine, PreprocessorParseError> {
+    // Match %include tag
+    let (input, _) = preceded(space0, tag_no_case(KEYWORD_INCLUDE))(input)?;
+
+    // Get include file path
+    let (input, file_path) =
+        match delimited(space1, alt((parse_string_literal, is_not(" \t"))), space0)(input) {
+            Ok(res) => res,
+            Err(_) => {
+                return Err(Err::Failure(PreprocessorParseError {
+                    _input: input,
+                    kind: PreprocessorParseErrorKind::IncludeMissingFilePath,
+                }))
+            }
+        };
+
+    Ok((input, SourceLine::Include(PathBuf::from(file_path))))
 }
 
 /// Parses %macro directive
-fn parse_macro_definition_line(input: &str) -> IResult<&str, SourceLine> {
-    map(
-        tuple((
-            space0,
-            tag_no_case(KEYWORD_MACRO),
-            space1,
-            parse_identifier,
-            pair(tag("("), space0),
-            separated_list0(pair(tag(","), space0), parse_identifier),
-            pair(space0, tag(")")),
-            space0,
-        )),
-        |(_, _, _, identifier, _, arguments, _, _)| {
-            println!("{}: {:?}", identifier, arguments);
+fn parse_macro_definition_line(input: &str) -> IResult<&str, SourceLine, PreprocessorParseError> {
+    // Match %macro tag
+    let (input, _) = preceded(space0, tag_no_case(KEYWORD_MACRO))(input)?;
 
-            // TODO fix this bad code
-            let mut args_string: Vec<String> = vec![];
-            for arg in arguments {
-                args_string.push(arg.to_owned());
-            }
+    // Get identifier
+    let (input, identifier) = match delimited(space1, parse_identifier, space0)(input) {
+        Ok(res) => res,
+        Err(_) => {
+            return Err(Err::Failure(PreprocessorParseError {
+                _input: input,
+                kind: PreprocessorParseErrorKind::MacroMissingIdentifier,
+            }))
+        }
+    };
 
-            SourceLine::Macro(identifier, args_string)
-        },
+    // Get argument list
+    let (input, arguments) = match delimited(
+        pair(tag("("), space0),
+        separated_list0(pair(tag(","), space0), parse_identifier),
+        pair(space0, tag(")")),
     )(input)
+    {
+        Ok(res) => res,
+        Err(_) => {
+            return Err(Err::Failure(PreprocessorParseError {
+                _input: input,
+                kind: PreprocessorParseErrorKind::MacroMalformedArguments(identifier),
+            }))
+        }
+    };
+
+    // TODO fix this bad code
+    let mut args_string: Vec<String> = vec![];
+    for arg in arguments {
+        args_string.push(arg.to_owned());
+    }
+    Ok((input, SourceLine::Macro(identifier, args_string)))
 }
 
 /// Parses %endm directive
-fn parse_endm_line(input: &str) -> IResult<&str, SourceLine> {
+fn parse_endm_line(input: &str) -> IResult<&str, SourceLine, PreprocessorParseError> {
     map(
         delimited(space0, tag_no_case(KEYWORD_END_MACRO), space0),
         |_| SourceLine::EndMacro,
@@ -140,18 +234,27 @@ fn parse_endm_line(input: &str) -> IResult<&str, SourceLine> {
 }
 
 /// Parse preprocessor identifier
-fn parse_identifier(input: &str) -> IResult<&str, String> {
+fn parse_identifier(input: &str) -> IResult<&str, String, PreprocessorParseError> {
     map(many1(alt((alphanumeric1, is_a("_")))), |res| res.join(""))(input)
 }
 
 /// Parser that consumes any string of characters until end of input
-fn any_character(input: &str) -> IResult<&str, &str> {
+fn any_character<T, E: ParseError<T>>(input: &str) -> IResult<&str, &str, E> {
     Ok(("", input))
 }
 
 /// Parse double quote delimited string literal
 fn parse_string_literal(input: &str) -> IResult<&str, &str> {
-    delimited(tag("\""), is_not("\""), tag("\""))(input)
+    let (input, res) = delimited(tag("\""), opt(is_not("\"")), tag("\""))(input)?;
+
+    // Handle empty strings
+    Ok((
+        input,
+        match res {
+            Some(string) => string,
+            None => "",
+        },
+    ))
 }
 
 #[cfg(test)]
@@ -162,7 +265,8 @@ mod tests {
     fn parse_any_character() {
         let tests = [("abc123DEF456", "abc123DEF456", ""), (" ", " ", "")];
         for (input, exp_output, exp_remaining) in tests {
-            let (remaining, output) = any_character(input).unwrap();
+            let res: IResult<&str, &str, PreprocessorParseError> = any_character(input);
+            let (remaining, output) = res.unwrap();
             assert_eq!(output, exp_output);
             assert_eq!(remaining, exp_remaining);
         }
@@ -173,6 +277,7 @@ mod tests {
         let tests = [
             ("\"test\"", "test", ""),
             ("\"ciaoABC123\"notthis   \"", "ciaoABC123", "notthis   \""),
+            ("\"\"", "", ""),
         ];
         for (input, exp_output, exp_remaining) in tests {
             let (remaining, output) = parse_string_literal(input).unwrap();
@@ -182,9 +287,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn parse_string_literal_err() {
-        parse_string_literal("nostringhere").unwrap();
+        let _ = parse_string_literal("nostringhere").unwrap_err();
     }
 
     #[test]
@@ -202,9 +306,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn parse_identifier_err() {
-        parse_identifier(" noidentifierhere").unwrap();
+        let tests = [" noidentifierhere", "", "$ciao"];
+        for input in tests {
+            parse_identifier(input).unwrap_err();
+        }
     }
 
     #[test]
@@ -221,9 +327,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn parse_endm_line_err() {
-        parse_endm_line(" there seems to be no endm here %endm ").unwrap();
+        let tests = ["noendmacro", "", "ciao %endm", "%orazio"];
+        for input in tests {
+            parse_endm_line(input).unwrap_err();
+        }
     }
 
     #[test]
@@ -248,15 +356,17 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn parse_include_line_err1() {
-        parse_include_line(" %endm ").unwrap();
-    }
+    fn parse_include_line_err() {
+        let tests = [("", false), (" lda test test", false), ("%include", true)];
+        for (input, exp_failure) in tests {
+            let err = parse_include_line(input).unwrap_err();
 
-    #[test]
-    #[should_panic]
-    fn parse_include_line_err2() {
-        parse_include_line(" %include ").unwrap();
+            match err {
+                Err::Incomplete(_) => panic!(),
+                Err::Error(_) => assert!(!exp_failure),
+                Err::Failure(_) => assert!(exp_failure),
+            }
+        }
     }
 
     #[test]
@@ -284,15 +394,23 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn parse_define_line_err1() {
-        parse_define_line(" some other thing ").unwrap();
-    }
+    fn parse_define_line_err() {
+        let tests = [
+            ("", false),
+            (" lda test test", false),
+            ("%define", true),
+            ("%define test", true),
+            ("%define test clasdfs= value", true),
+        ];
+        for (input, exp_failure) in tests {
+            let err = parse_define_line(input).unwrap_err();
 
-    #[test]
-    #[should_panic]
-    fn parse_define_line_err2() {
-        parse_define_line("% define").unwrap();
+            match err {
+                Err::Incomplete(_) => panic!(),
+                Err::Error(_) => assert!(!exp_failure),
+                Err::Failure(_) => assert!(exp_failure),
+            }
+        }
     }
 
     #[test]
@@ -320,9 +438,24 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn parse_macro_definition_err() {
-        parse_macro_definition_line(" ").unwrap();
+    fn parse_macro_definition_line_err() {
+        let tests = [
+            ("", false),
+            (" lda test test", false),
+            ("%macro", true),
+            ("%macro id", true),
+            ("%macro ciao(", true),
+            ("%macro ciao(,)", true),
+        ];
+        for (input, exp_failure) in tests {
+            let err = parse_macro_definition_line(input).unwrap_err();
+
+            match err {
+                Err::Incomplete(_) => panic!(),
+                Err::Error(_) => assert!(!exp_failure),
+                Err::Failure(_) => assert!(exp_failure),
+            }
+        }
     }
 
     #[test]
@@ -378,5 +511,12 @@ mod tests {
             SourceLine::Code("    CODE this is some code ;Comment   ".to_owned())
         );
         assert_eq!(res[5], SourceLine::Include(PathBuf::from("file_path")));
+    }
+
+    #[test]
+    fn parse_source_lines_err() {
+        let input = "%macro TEST()\n   INST\n%endm\n%define\n    CODE this is some code ;Comment   \n%include file_path";
+
+        parse_source_lines(input).unwrap_err();
     }
 }
