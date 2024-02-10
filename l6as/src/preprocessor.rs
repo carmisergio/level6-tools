@@ -11,6 +11,8 @@ use nom::{
 use std::path::PathBuf;
 use std::vec;
 
+use crate::{file::FileInclusionCoordinator, logging::PreprocessorParseErrorBody};
+
 use super::logging::{
     print_preprocessor_error, print_preprocessor_warning, PreprocessorError, PreprocessorWarning,
     PreprocessorWarningKind,
@@ -21,7 +23,7 @@ use super::logging::{
 const KEYWORD_DEFINE: &str = "%define";
 const KEYWORD_INCLUDE: &str = "%include";
 const KEYWORD_MACRO: &str = "%macro";
-const KEYWORD_END_MACRO: &str = "%endm";
+const KEYWORD_END_MACRO: &str = "%endmacro";
 /////////////////////////////////////////////////
 
 #[derive(Debug)]
@@ -53,7 +55,7 @@ impl<'a> ParseError<&'a str> for PreprocessorParseError<'a> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum SourceLine {
     Define(String, String),
     Include(PathBuf),
@@ -62,8 +64,53 @@ pub enum SourceLine {
     Code(String),
 }
 
-/// Parses input source code to a vector of `SourceLine`s
-pub fn parse_source_lines(input: &str) -> Result<Vec<SourceLine>, Vec<SourceLine>> {
+/// Parses input source file to a vector of `SourceLine`s, resolving includes
+pub fn parse_source_file(
+    file_path: &PathBuf,
+    fi_coord: &mut FileInclusionCoordinator,
+) -> Result<Vec<SourceLine>, Vec<SourceLine>> {
+    let mut error_encountered = false;
+
+    // Read file
+    let (abs_path, code) = match fi_coord.read_file(&file_path) {
+        Ok(res) => res,
+        Err(err) => {
+            // Log error
+            print_preprocessor_error(PreprocessorError::FileInclusion(err));
+            return Err(vec![]);
+        }
+    };
+
+    // Parse source lines
+    let lines = match parse_source_string(&code, &abs_path) {
+        Ok(lines) => lines,
+        Err(lines) => {
+            error_encountered = true;
+            lines
+        }
+    };
+
+    // Process %includes
+    let lines = match process_includes(&lines, fi_coord) {
+        Ok(res) => res,
+        Err(lines) => {
+            error_encountered = true;
+            lines
+        }
+    };
+
+    // Return results
+    match error_encountered {
+        false => Ok(lines),
+        true => Err(lines),
+    }
+}
+
+/// Parses input source code string to a vector of `SourceLine`s
+pub fn parse_source_string(
+    input: &str,
+    file_name: &PathBuf,
+) -> Result<Vec<SourceLine>, Vec<SourceLine>> {
     let mut lines: Vec<SourceLine> = vec![];
 
     // Keep track of if an error has been encountered
@@ -76,12 +123,14 @@ pub fn parse_source_lines(input: &str) -> Result<Vec<SourceLine>, Vec<SourceLine
             Ok(line) => line,
             Err(err) => {
                 match err {
-                    Err::Failure(err) => print_preprocessor_error(PreprocessorError {
-                        line_n,
-                        file_name: PathBuf::from("test.l6s"),
-                        line: raw_line.to_owned(),
-                        kind: err.kind,
-                    }),
+                    Err::Failure(err) => print_preprocessor_error(PreprocessorError::Parser(
+                        PreprocessorParseErrorBody {
+                            line_n: line_n + 1,
+                            file_name: file_name.clone(),
+                            line: raw_line.to_owned(),
+                            kind: err.kind,
+                        },
+                    )),
                     Err::Error(_) => {}
                     Err::Incomplete(_) => {}
                 }
@@ -96,8 +145,8 @@ pub fn parse_source_lines(input: &str) -> Result<Vec<SourceLine>, Vec<SourceLine
         // Check if there is still unparsed stuff
         if remaining.len() > 0 {
             print_preprocessor_warning(PreprocessorWarning {
-                line_n,
-                file_name: PathBuf::from("test.l6s"),
+                line_n: line_n + 1,
+                file_name: file_name.clone(),
                 line: raw_line.to_owned(),
                 kind: PreprocessorWarningKind::GarbageAtEndOfLine(remaining.to_owned()),
             });
@@ -112,6 +161,41 @@ pub fn parse_source_lines(input: &str) -> Result<Vec<SourceLine>, Vec<SourceLine
         true => Err(lines),
     }
 }
+
+fn process_includes(
+    input: &Vec<SourceLine>,
+    fi_coord: &mut FileInclusionCoordinator,
+) -> Result<Vec<SourceLine>, Vec<SourceLine>> {
+    let mut output: Vec<SourceLine> = vec![];
+    let mut error = false;
+
+    for line in input {
+        // If line is include, resolve it. Otherwise copy line
+        if let SourceLine::Include(file_path) = line {
+            // Process new file
+            let mut included_lines = match parse_source_file(file_path, fi_coord) {
+                Ok(lines) => lines,
+                Err(lines) => {
+                    error = true;
+                    lines
+                }
+            };
+            output.append(&mut included_lines)
+        } else {
+            output.push(line.clone())
+        }
+    }
+
+    // Return results
+    match error {
+        false => Ok(output),
+        true => Err(output),
+    }
+}
+
+/*
+ * Nom parsers
+ */
 
 fn parse_source_line(input: &str) -> IResult<&str, SourceLine, PreprocessorParseError> {
     alt((
@@ -316,8 +400,8 @@ mod tests {
     #[test]
     fn parse_endm_line_succ() {
         let tests = [
-            ("%endm", SourceLine::EndMacro, ""),
-            ("   %ENDM extra", SourceLine::EndMacro, "extra"),
+            ("%endmacro", SourceLine::EndMacro, ""),
+            ("   %ENDMACRO extra", SourceLine::EndMacro, "extra"),
         ];
         for (input, exp_output, exp_remaining) in tests {
             let (remaining, output) = parse_endm_line(input).unwrap();
@@ -328,7 +412,7 @@ mod tests {
 
     #[test]
     fn parse_endm_line_err() {
-        let tests = ["noendmacro", "", "ciao %endm", "%orazio"];
+        let tests = ["noendmacro", "", "ciao %endmacro", "%orazio"];
         for input in tests {
             parse_endm_line(input).unwrap_err();
         }
@@ -484,7 +568,7 @@ mod tests {
                 ),
                 "",
             ),
-            ("%endm", SourceLine::EndMacro, ""),
+            ("%endmacro", SourceLine::EndMacro, ""),
         ];
         for (input, exp_output, exp_remaining) in tests {
             let (remaining, output) = parse_source_line(input).unwrap();
@@ -495,9 +579,9 @@ mod tests {
 
     #[test]
     fn parse_source_lines_succ() {
-        let input = "%macro TEST()\n   INST\n%endm\n%define def=12\n    CODE this is some code ;Comment   \n%include file_path";
+        let input = "%macro TEST()\n   INST\n%endmacro\n%define def=12\n    CODE this is some code ;Comment   \n%include file_path";
 
-        let res = parse_source_lines(input).unwrap();
+        let res = parse_source_string(input, &PathBuf::from("notimportant")).unwrap();
 
         assert_eq!(res[0], SourceLine::Macro("TEST".to_owned(), vec![]));
         assert_eq!(res[1], SourceLine::Code("   INST".to_owned()));
@@ -515,8 +599,8 @@ mod tests {
 
     #[test]
     fn parse_source_lines_err() {
-        let input = "%macro TEST()\n   INST\n%endm\n%define\n    CODE this is some code ;Comment   \n%include file_path";
+        let input = "%macro TEST()\n   INST\n%endmacro\n%define\n    CODE this is some code ;Comment   \n%include file_path";
 
-        parse_source_lines(input).unwrap_err();
+        parse_source_string(input, &PathBuf::from("notimportant")).unwrap_err();
     }
 }

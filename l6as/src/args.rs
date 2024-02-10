@@ -10,4 +10,8 @@ pub struct Args {
     /// Output file path
     #[arg(short, long)]
     pub output: Option<PathBuf>,
+
+    /// Include directories
+    #[arg(short = 'I', long)]
+    pub include_dirs: Vec<PathBuf>,
 }
