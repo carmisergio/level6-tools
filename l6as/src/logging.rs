@@ -1,5 +1,4 @@
-use super::file::FileInclusionError;
-use super::preprocessor::PreprocessorParseErrorKind;
+use super::preprocessor::LineLocation;
 use std::path::PathBuf;
 
 use colored::Colorize;
@@ -28,38 +27,55 @@ impl PreprocessorWarning {
 }
 
 #[derive(Debug)]
-pub enum PreprocessorError {
-    Parser(PreprocessorParseErrorBody),
-    FileInclusion(FileInclusionError),
+pub enum PreprocessorErrorKind {
+    // Lexer
+    IncludeMissingFilePath,
+    DefineMissingIdentifier,
+    DefineMissingValue(String),
+
+    // %include processing
+    CannotOpenSourceFile(PathBuf),
+    DobleInclusion(PathBuf),
+
+    // %define processing
+    DefineMultipleDefinition(String),
+    DefineUndefined(String),
+
+    // Unknown
+    Nom,
 }
 
 #[derive(Debug)]
-pub struct PreprocessorParseErrorBody {
-    pub line_n: usize,
-    pub file_name: PathBuf,
-    pub line: String,
-    pub kind: PreprocessorParseErrorKind,
+pub struct PreprocessorError {
+    pub kind: PreprocessorErrorKind,
+    pub location: Option<LineLocation>,
 }
 
-impl PreprocessorParseErrorBody {
+impl PreprocessorError {
     pub fn message(&self) -> String {
         match &self.kind {
-            PreprocessorParseErrorKind::IncludeMissingFilePath => {
+            PreprocessorErrorKind::IncludeMissingFilePath => {
                 format!("missing file path for %include")
             }
-            PreprocessorParseErrorKind::DefineMissingIdentifier => {
+            PreprocessorErrorKind::DefineMissingIdentifier => {
                 format!("missing identifier for %define")
             }
-            PreprocessorParseErrorKind::DefineMissingValue(ident) => {
+            PreprocessorErrorKind::DefineMissingValue(ident) => {
                 format!("missing value for %define \"{}\"", ident)
             }
-            PreprocessorParseErrorKind::MacroMissingIdentifier => {
-                format!("missing identifier for %macro")
+            PreprocessorErrorKind::CannotOpenSourceFile(file_path) => {
+                format!("unable to open source file: \"{}\"", file_path.display())
             }
-            PreprocessorParseErrorKind::MacroMalformedArguments(ident) => {
-                format!("malformed argument list for %macro \"{}\"", ident)
+            PreprocessorErrorKind::DobleInclusion(file_path) => {
+                format!("double %include for file: \"{}\"", file_path.display())
             }
-            PreprocessorParseErrorKind::Nom => {
+            PreprocessorErrorKind::DefineUndefined(identifier) => {
+                format!("no %define for identifier: \"{}\"", identifier)
+            }
+            PreprocessorErrorKind::DefineMultipleDefinition(identifier) => {
+                format!("multiple %define for identifier: \"{}\"", identifier)
+            }
+            PreprocessorErrorKind::Nom => {
                 format!("unknown parsing error")
             }
         }
@@ -82,39 +98,16 @@ pub fn print_preprocessor_warning(msg: PreprocessorWarning) {
 }
 
 pub fn print_preprocessor_error(err: PreprocessorError) {
-    match err {
-        PreprocessorError::Parser(err) => print_preprocessor_parse_error(err),
-        PreprocessorError::FileInclusion(err) => print_preprocessor_file_inclusion_error(err),
-    }
-}
-
-pub fn print_preprocessor_parse_error(err: PreprocessorParseErrorBody) {
     println!("{} [preprocessor] {}", "error".bright_red(), err.message());
-    println!(
-        "  --> {} {}{} {}",
-        err.file_name.file_name().unwrap().to_str().unwrap(),
-        err.line_n.to_string().bold(),
-        "|".bright_blue(),
-        err.line
-    );
-}
 
-pub fn print_preprocessor_file_inclusion_error(err: FileInclusionError) {
-    match err {
-        FileInclusionError::FileNotFound(file_path) => {
-            println!(
-                "{} [preprocessor] unable to open source file: \"{}\"",
-                "error".bright_red(),
-                file_path.display()
-            );
-        }
-        FileInclusionError::DoubleInclusion(file_path) => {
-            println!(
-                "{} [preprocessor] double include for file: \"{}\"",
-                "error".bright_red(),
-                file_path.display()
-            );
-        }
+    if let Some(location) = err.location {
+        println!(
+            "  --> {} {}{} {}",
+            location.file_name.file_name().unwrap().to_str().unwrap(),
+            location.line_n.to_string().bold(),
+            "|".bright_blue(),
+            location.raw_content
+        );
     }
 }
 

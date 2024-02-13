@@ -6,8 +6,7 @@ mod preprocessor;
 use clap::Parser;
 
 use file::FileInclusionCoordinator;
-
-use crate::preprocessor::parse_source_file;
+use preprocessor::preprocess;
 
 fn main() {
     let args = args::Args::parse();
@@ -20,7 +19,7 @@ fn main() {
     // Has an error happened?
     let mut error = false;
 
-    let source_lines = match parse_source_file(&args.input, &mut fi_coord) {
+    let code = match preprocess(&args.input, &mut fi_coord) {
         Ok(lines) => lines,
         Err(_err) => {
             error = true;
@@ -29,7 +28,7 @@ fn main() {
     };
 
     if !error {
-        println!("{:#?}", source_lines);
+        println!("{:#?}", code);
     } else {
         logging::print_final_error_msg();
     }
