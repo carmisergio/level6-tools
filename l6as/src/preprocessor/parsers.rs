@@ -1,4 +1,4 @@
-use super::processing::{DefinitionChunk, SoruceLineKind};
+use super::processing::{DefinitionChunk, SourceLineBody};
 use crate::logging::PreprocessorErrorKind;
 use nom::{
     branch::alt,
@@ -25,10 +25,10 @@ pub struct PreprocessorParseError<'a> {
 }
 
 impl<'a> ParseError<&'a str> for PreprocessorParseError<'a> {
-    fn from_error_kind(input: &'a str, _kind: ErrorKind) -> Self {
+    fn from_error_kind(input: &'a str, kind: ErrorKind) -> Self {
         Self {
             _input: input,
-            kind: PreprocessorErrorKind::Nom,
+            kind: PreprocessorErrorKind::Nom(kind),
         }
     }
 
@@ -37,19 +37,43 @@ impl<'a> ParseError<&'a str> for PreprocessorParseError<'a> {
     }
 }
 
-pub fn parse_source_line(input: &str) -> IResult<&str, SoruceLineKind, PreprocessorParseError> {
-    alt((parse_define_line, parse_include_line, parse_code_line))(input)
+pub fn parse_source_line(
+    input: &str,
+) -> IResult<&str, (SourceLineBody, String, String), PreprocessorParseError> {
+    // Divide code from comment
+    let (body_str, comment) = divide_comment(input);
+
+    // Handle empty lines
+    if body_str.len() < 1 {
+        return Ok((
+            "",
+            (SourceLineBody::Empty, comment.to_owned(), "".to_owned()),
+        ));
+    }
+
+    // Parse line body
+    let (garbage, body) = parse_source_line_body(body_str)?;
+
+    Ok(("", (body, comment.to_owned(), garbage.to_owned())))
+}
+
+fn parse_source_line_body(input: &str) -> IResult<&str, SourceLineBody, PreprocessorParseError> {
+    alt((
+        parse_define_line_body,
+        parse_include_line_body,
+        parse_code_line_body,
+    ))(input)
 }
 
 /// Parses a normal code line
-fn parse_code_line(input: &str) -> IResult<&str, SoruceLineKind, PreprocessorParseError> {
-    map(parse_until_end_of_input, |res: &str| -> SoruceLineKind {
-        SoruceLineKind::Code(res.to_string())
+fn parse_code_line_body(input: &str) -> IResult<&str, SourceLineBody, PreprocessorParseError> {
+    map(is_not(";"), |res: &str| -> SourceLineBody {
+        SourceLineBody::Code(res.trim().to_string())
     })(input)
 }
 
 /// Parses %define directive
-fn parse_define_line(input: &str) -> IResult<&str, SoruceLineKind, PreprocessorParseError> {
+fn parse_define_line_body(input: &str) -> IResult<&str, SourceLineBody, PreprocessorParseError> {
     // Match %define tag
     let (input, _) = preceded(space0, tag_no_case(KEYWORD_DEFINE))(input)?;
 
@@ -68,7 +92,7 @@ fn parse_define_line(input: &str) -> IResult<&str, SoruceLineKind, PreprocessorP
     let (input, value) = match preceded(
         // Type annotation on first space0 is needed but I don't know why
         delimited(space0::<&str, PreprocessorParseError>, tag("="), space0),
-        parse_until_end_of_input,
+        is_not(";"),
     )(input)
     {
         Ok(res) => res,
@@ -80,17 +104,20 @@ fn parse_define_line(input: &str) -> IResult<&str, SoruceLineKind, PreprocessorP
         }
     };
 
-    Ok((input, SoruceLineKind::Define(identifier, value.to_owned())))
+    Ok((
+        input,
+        SourceLineBody::Define(identifier, value.trim().to_owned()),
+    ))
 }
 
 /// Parses %include directive
-fn parse_include_line(input: &str) -> IResult<&str, SoruceLineKind, PreprocessorParseError> {
+fn parse_include_line_body(input: &str) -> IResult<&str, SourceLineBody, PreprocessorParseError> {
     // Match %include tag
     let (input, _) = preceded(space0, tag_no_case(KEYWORD_INCLUDE))(input)?;
 
     // Get include file path
     let (input, file_path) =
-        match delimited(space1, alt((parse_string_literal, is_not(" \t"))), space0)(input) {
+        match delimited(space1, alt((parse_string_literal, is_not(" \t;"))), space0)(input) {
             Ok(res) => res,
             Err(_) => {
                 return Err(Err::Failure(PreprocessorParseError {
@@ -100,7 +127,7 @@ fn parse_include_line(input: &str) -> IResult<&str, SoruceLineKind, Preprocessor
             }
         };
 
-    Ok((input, SoruceLineKind::Include(PathBuf::from(file_path))))
+    Ok((input, SourceLineBody::Include(PathBuf::from(file_path))))
 }
 
 /// Parse preprocessor identifier
@@ -108,9 +135,15 @@ fn parse_identifier(input: &str) -> IResult<&str, String> {
     map(many1(alt((alphanumeric1, is_a("_")))), |res| res.join(""))(input)
 }
 
-/// Parser that consumes any string of characters until end of input
-fn parse_until_end_of_input<T, E: ParseError<T>>(input: &str) -> IResult<&str, &str, E> {
-    Ok(("", input))
+fn divide_comment(input: &str) -> (&str, &str) {
+    for (pos, character) in input.char_indices() {
+        if character == ';' {
+            // Return (code, comment)
+            return (&input[0..pos].trim(), &input[pos..].trim());
+        }
+    }
+
+    (input.trim(), "")
 }
 
 /// Parse double quote delimited string literal
@@ -149,18 +182,7 @@ fn parse_code_chunk(input: &str) -> IResult<&str, DefinitionChunk> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_any_character() {
-        let tests = [("abc123DEF456", "abc123DEF456", ""), (" ", " ", "")];
-        for (input, exp_output, exp_remaining) in tests {
-            let res: IResult<&str, &str, PreprocessorParseError> = parse_until_end_of_input(input);
-            let (remaining, output) = res.unwrap();
-            assert_eq!(output, exp_output);
-            assert_eq!(remaining, exp_remaining);
-        }
-    }
+    use super::{divide_comment, *};
 
     #[test]
     fn parse_string_literal_succ() {
@@ -186,7 +208,7 @@ mod tests {
         let tests = [
             ("NICE_IDENTIFIER", "NICE_IDENTIFIER", ""),
             ("alsoANiceIdentifier extra", "alsoANiceIdentifier", " extra"),
-            ("test$ciao", "test", "$ciao"),
+            ("test;ciao", "test", ";ciao"),
         ];
         for (input, exp_output, exp_remaining) in tests {
             let (remaining, output) = parse_identifier(input).unwrap();
@@ -207,18 +229,18 @@ mod tests {
     fn parse_include_line_succ() {
         let tests = [
             (
-                "%include ciao",
-                SoruceLineKind::Include(PathBuf::from("ciao")),
-                "",
+                "%include ciao;test",
+                SourceLineBody::Include(PathBuf::from("ciao")),
+                ";test",
             ),
             (
-                "     %INCLUDE \"test\"     somextra",
-                SoruceLineKind::Include(PathBuf::from("test")),
-                "somextra",
+                "     %INCLUDE \"test\"     somextra ; ciao",
+                SourceLineBody::Include(PathBuf::from("test")),
+                "somextra ; ciao",
             ),
         ];
         for (input, exp_output, exp_remaining) in tests {
-            let (remaining, output) = parse_include_line(input).unwrap();
+            let (remaining, output) = parse_include_line_body(input).unwrap();
             assert_eq!(output, exp_output);
             assert_eq!(remaining, exp_remaining);
         }
@@ -228,7 +250,7 @@ mod tests {
     fn parse_include_line_err() {
         let tests = [("", false), (" lda test test", false), ("%include", true)];
         for (input, exp_failure) in tests {
-            let err = parse_include_line(input).unwrap_err();
+            let err = parse_include_line_body(input).unwrap_err();
 
             match err {
                 Err::Incomplete(_) => panic!(),
@@ -242,13 +264,13 @@ mod tests {
     fn parse_define_line_succ() {
         let tests = [
             (
-                "%define _IDENTIFIER = This is a nice value",
-                SoruceLineKind::Define("_IDENTIFIER".to_owned(), "This is a nice value".to_owned()),
-                "",
+                "%define _IDENTIFIER = This is a nice value ; And comment",
+                SourceLineBody::Define("_IDENTIFIER".to_owned(), "This is a nice value".to_owned()),
+                "; And comment",
             ),
             (
-                "%DEFINE   definitelyAValidIdentifier=!=X0   test",
-                SoruceLineKind::Define(
+                "%DEFINE   definitelyAValidIdentifier=!=X0   test   ",
+                SourceLineBody::Define(
                     "definitelyAValidIdentifier".to_owned(),
                     "!=X0   test".to_owned(),
                 ),
@@ -256,7 +278,7 @@ mod tests {
             ),
         ];
         for (input, exp_output, exp_remaining) in tests {
-            let (remaining, output) = parse_define_line(input).unwrap();
+            let (remaining, output) = parse_define_line_body(input).unwrap();
             assert_eq!(output, exp_output);
             assert_eq!(remaining, exp_remaining);
         }
@@ -272,7 +294,7 @@ mod tests {
             ("%define test clasdfs= value", true),
         ];
         for (input, exp_failure) in tests {
-            let err = parse_define_line(input).unwrap_err();
+            let err = parse_define_line_body(input).unwrap_err();
 
             match err {
                 Err::Incomplete(_) => panic!(),
@@ -283,28 +305,42 @@ mod tests {
     }
 
     #[test]
-    fn parse_source_line_succ() {
+    fn parse_source_line_body_succ() {
         let tests = [
             (
                 "   lda test, test",
-                SoruceLineKind::Code("   lda test, test".to_owned()),
+                SourceLineBody::Code("lda test, test".to_owned()),
                 "",
             ),
             (
                 "%define TEST=ciao",
-                SoruceLineKind::Define("TEST".to_owned(), "ciao".to_owned()),
+                SourceLineBody::Define("TEST".to_owned(), "ciao".to_owned()),
                 "",
             ),
             (
                 "%include \"included.l6s\"",
-                SoruceLineKind::Include(PathBuf::from("included.l6s")),
+                SourceLineBody::Include(PathBuf::from("included.l6s")),
                 "",
             ),
         ];
         for (input, exp_output, exp_remaining) in tests {
-            let (remaining, output) = parse_source_line(input).unwrap();
+            let (remaining, output) = parse_source_line_body(input).unwrap();
             assert_eq!(output, exp_output);
             assert_eq!(remaining, exp_remaining);
+        }
+    }
+
+    #[test]
+    fn test_divide_comment() {
+        let tests = [
+            ("; comment", "", "; comment"),
+            ("code ; comment", "code", "; comment"),
+            ("code ", "code", ""),
+        ];
+        for (input, exp_code, exp_comment) in tests {
+            let (code, comment) = divide_comment(input);
+            assert_eq!(code, exp_code);
+            assert_eq!(comment, exp_comment);
         }
     }
 }

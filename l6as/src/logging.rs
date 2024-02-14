@@ -42,7 +42,7 @@ pub enum PreprocessorErrorKind {
     DefineUndefined(String),
 
     // Unknown
-    Nom,
+    Nom(nom::error::ErrorKind),
 }
 
 #[derive(Debug)]
@@ -75,8 +75,8 @@ impl PreprocessorError {
             PreprocessorErrorKind::DefineMultipleDefinition(identifier) => {
                 format!("multiple %define for identifier: \"{}\"", identifier)
             }
-            PreprocessorErrorKind::Nom => {
-                format!("unknown parsing error")
+            PreprocessorErrorKind::Nom(kind) => {
+                format!("unknown nom error: {:?}", kind)
             }
         }
     }

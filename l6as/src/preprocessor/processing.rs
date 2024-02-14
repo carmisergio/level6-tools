@@ -12,7 +12,8 @@ use crate::logging::{
 use super::parsers::{parse_definitions_chunks, parse_source_line};
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum SoruceLineKind {
+pub enum SourceLineBody {
+    Empty,
     Define(String, String),
     Include(PathBuf),
     Code(String),
@@ -26,8 +27,9 @@ pub struct LineLocation {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct SourceLine {
-    kind: SoruceLineKind,
+    body: SourceLineBody,
     location: LineLocation,
+    comment: String,
 }
 
 /// Preprocess a program
@@ -128,7 +130,7 @@ fn source_lines_to_string(input: &[SourceLine]) -> Vec<String> {
 
     // Go over all lines
     for line in input {
-        if let SoruceLineKind::Code(content) = &line.kind {
+        if let SourceLineBody::Code(content) = &line.body {
             strings.push(content.clone());
         } else {
             panic!();
@@ -155,7 +157,7 @@ fn parse_source_string(
     // Get all lines from file
     for (line_n, raw_line) in input.lines().enumerate() {
         // Parse line
-        let (remaining, line) = match parse_source_line(raw_line) {
+        let (_, (body, comment, garbage)) = match parse_source_line(raw_line) {
             Ok(line) => line,
             Err(err) => {
                 match err {
@@ -167,7 +169,15 @@ fn parse_source_string(
                             raw_content: raw_line.to_owned(),
                         }),
                     }),
-                    Err::Error(_) => {}
+                    Err::Error(err) => print_preprocessor_error(PreprocessorError {
+                        kind: err.kind,
+                        location: Some(LineLocation {
+                            line_n: line_n + 1,
+                            file_name: file_name.clone(),
+                            raw_content: raw_line.to_owned(),
+                        }),
+                    }),
+
                     Err::Incomplete(_) => {}
                 }
 
@@ -179,17 +189,24 @@ fn parse_source_string(
         };
 
         // Check if there is still unparsed stuff
-        if remaining.len() > 0 {
+        if garbage.len() > 0 {
             print_preprocessor_warning(PreprocessorWarning {
                 line_n: line_n + 1,
                 file_name: file_name.clone(),
                 line: raw_line.to_owned(),
-                kind: PreprocessorWarningKind::GarbageAtEndOfLine(remaining.to_owned()),
+                kind: PreprocessorWarningKind::GarbageAtEndOfLine(garbage.to_owned()),
             });
         }
 
+        // If the line is empty, ignore it
+        if let SourceLineBody::Empty = body {
+            // continue;
+        }
+
+        // Add line to list
         lines.push(SourceLine {
-            kind: line,
+            body,
+            comment,
             location: LineLocation {
                 line_n: line_n + 1,
                 file_name: file_name.clone(),
@@ -203,6 +220,7 @@ fn parse_source_string(
         false => Ok(lines),
         true => Err(lines),
     }
+    // Ok(lines)
 }
 
 fn process_includes(
@@ -214,7 +232,7 @@ fn process_includes(
 
     for line in input {
         // If line is include, resolve it. Otherwise copy line
-        if let SoruceLineKind::Include(file_path) = &line.kind {
+        if let SourceLineBody::Include(file_path) = &line.body {
             // Process new file
             let mut included_lines = match parse_source_file(&file_path, fi_coord) {
                 Ok(lines) => lines,
@@ -253,7 +271,7 @@ fn process_defines(input: &[SourceLine]) -> Result<Vec<SourceLine>, Vec<SourceLi
 
     // Construct definition table
     for line in input {
-        if let SoruceLineKind::Define(identifier, value) = &line.kind {
+        if let SourceLineBody::Define(identifier, value) = &line.body {
             match definition_table.get(identifier) {
                 // Check if this identifier was already defined
                 Some(_) => {
@@ -272,10 +290,11 @@ fn process_defines(input: &[SourceLine]) -> Result<Vec<SourceLine>, Vec<SourceLi
 
     // Resolve definitions
     for line in input {
-        if let SoruceLineKind::Code(code) = &line.kind {
+        if let SourceLineBody::Code(code) = &line.body {
             match resolve_defines(&code, &definition_table, &line.location) {
                 Ok(code) => res.push(SourceLine {
-                    kind: SoruceLineKind::Code(code),
+                    body: SourceLineBody::Code(code),
+                    comment: line.comment.clone(),
                     location: line.location.clone(),
                 }),
                 Err(_) => error_encountered = true,
