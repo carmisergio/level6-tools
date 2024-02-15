@@ -282,7 +282,7 @@ fn process_defines(input: &[SourceLine]) -> Result<Vec<SourceLine>, Vec<SourceLi
                     error_encountered = true;
                 }
                 None => {
-                    definition_table.insert(identifier.clone(), value.clone());
+                    definition_table.insert(identifier.clone().to_lowercase(), value.clone());
                 }
             }
         }
@@ -331,7 +331,7 @@ fn resolve_defines(
             DefinitionChunk::Code(code) => result.push_str(&code),
             DefinitionChunk::DefinitionReference(identifier) => {
                 // Look for definition in table
-                match def_table.get(&identifier) {
+                match def_table.get(&identifier.to_lowercase()) {
                     Some(value) => result.push_str(&value),
                     None => {
                         print_preprocessor_error(PreprocessorError {

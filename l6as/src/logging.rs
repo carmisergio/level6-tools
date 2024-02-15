@@ -106,7 +106,7 @@ pub fn print_preprocessor_error(err: PreprocessorError) {
             location.file_name.file_name().unwrap().to_str().unwrap(),
             location.line_n.to_string().bold(),
             "|".bright_blue(),
-            location.raw_content
+            location.raw_content.trim()
         );
     }
 }

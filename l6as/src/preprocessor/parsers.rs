@@ -2,12 +2,12 @@ use super::processing::{DefinitionChunk, SourceLineBody};
 use crate::logging::PreprocessorErrorKind;
 use nom::{
     branch::alt,
-    bytes::complete::{is_a, is_not, tag, tag_no_case},
+    bytes::complete::{is_a, is_not, tag, tag_no_case, take},
     character::complete::{alphanumeric1, space0, space1},
     combinator::{map, opt},
     error::{ErrorKind, ParseError},
-    multi::{many0, many1},
-    sequence::{delimited, preceded},
+    multi::{fold_many0, many0, many1},
+    sequence::{delimited, preceded, tuple},
     Err, IResult,
 };
 use std::path::PathBuf;
@@ -160,6 +160,32 @@ fn parse_string_literal(input: &str) -> IResult<&str, &str> {
     ))
 }
 
+fn parse_string_literal_block(input: &str) -> IResult<&str, String> {
+    let (input, (_, cont, _)) = tuple((
+        tag("\""),
+        fold_many0(
+            alt((
+                map(is_not("\"\\"), |val: &str| val.to_owned()),
+                parse_string_escaped_block,
+            )),
+            String::new,
+            |mut acc: String, item| {
+                acc.push_str(&item);
+                acc
+            },
+        ),
+        tag("\""),
+    ))(input)?;
+
+    Ok((input, format!("\"{}\"", cont)))
+}
+
+fn parse_string_escaped_block(input: &str) -> IResult<&str, String> {
+    let (input, (escaper, escaped)) = tuple((tag("\\"), take(1 as usize)))(input)?;
+    // let (input, (escaper, escaped)) = tuple((tag( as usize), take(1 as usize)))(input)?;
+    Ok((input, escaper.to_owned() + escaped))
+}
+
 pub fn parse_definitions_chunks(input: &str) -> IResult<&str, Vec<DefinitionChunk>> {
     many0(parse_definition_chunk)(input)
 }
@@ -175,7 +201,10 @@ fn parse_definition_reference(input: &str) -> IResult<&str, DefinitionChunk> {
 }
 
 fn parse_code_chunk(input: &str) -> IResult<&str, DefinitionChunk> {
-    let (input, code) = is_not("%")(input)?;
+    let (input, code) = alt((
+        map(is_not("%\""), |res: &str| res.to_owned()),
+        parse_string_literal_block,
+    ))(input)?;
 
     Ok((input, DefinitionChunk::Code(code.to_owned())))
 }
@@ -341,6 +370,28 @@ mod tests {
             let (code, comment) = divide_comment(input);
             assert_eq!(code, exp_code);
             assert_eq!(comment, exp_comment);
+        }
+    }
+
+    #[test]
+    fn parse_string_literal_block_succ() {
+        let tests = [
+            (
+                "\"this is a string literal\"",
+                "\"this is a string literal\"",
+                "",
+            ),
+            ("\"String\" notstring", "\"String\"", " notstring"),
+            (
+                "\"String with \\\" \" notstring",
+                "\"String with \\\" \"",
+                " notstring",
+            ),
+        ];
+        for (input, exp_output, exp_remaining) in tests {
+            let (remaining, output) = parse_string_literal_block(input).unwrap();
+            assert_eq!(output, exp_output);
+            assert_eq!(remaining, exp_remaining);
         }
     }
 }
