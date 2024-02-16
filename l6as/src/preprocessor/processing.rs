@@ -28,19 +28,26 @@ pub struct LineLocation {
 #[derive(Debug, PartialEq, Clone)]
 pub struct SourceLine {
     body: SourceLineBody,
-    location: LineLocation,
     comment: String,
+    location: LineLocation,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct CodeLine {
+    body: String,
+    comment: String,
+    location: LineLocation,
 }
 
 /// Preprocess a program
 pub fn preprocess(
     file_path: &PathBuf,
     fi_coord: &mut FileInclusionCoordinator,
-) -> Result<Vec<String>, Vec<String>> {
+) -> Result<Vec<CodeLine>, Vec<CodeLine>> {
     let mut error_encountered = false;
 
     // Parse the source file (resolving all includes)
-    let source_lines = match parse_source_file(file_path, fi_coord) {
+    let source_lines = match parse_source_file(file_path, fi_coord, &None) {
         Ok(lines) => lines,
         Err(lines) => {
             error_encountered = true;
@@ -58,7 +65,7 @@ pub fn preprocess(
     };
 
     // Flatten all code lines to string
-    let res = source_lines_to_string(&source_lines);
+    let res = source_lines_to_code_lines(&source_lines);
 
     // Return results
     match error_encountered {
@@ -71,6 +78,7 @@ pub fn preprocess(
 fn parse_source_file(
     file_path: &PathBuf,
     fi_coord: &mut FileInclusionCoordinator,
+    include_location: &Option<LineLocation>,
 ) -> Result<Vec<SourceLine>, Vec<SourceLine>> {
     let mut error_encountered = false;
 
@@ -83,13 +91,13 @@ fn parse_source_file(
                 FileInclusionError::FileNotFound(file_path) => {
                     print_preprocessor_error(PreprocessorError {
                         kind: PreprocessorErrorKind::CannotOpenSourceFile(file_path),
-                        location: None,
+                        location: include_location.clone(),
                     });
                 }
                 FileInclusionError::DoubleInclusion(file_path) => {
                     print_preprocessor_error(PreprocessorError {
                         kind: PreprocessorErrorKind::DobleInclusion(file_path),
-                        location: None,
+                        location: include_location.clone(),
                     });
                 }
             }
@@ -125,13 +133,17 @@ fn parse_source_file(
 
 /// Converts a Vec of SourceLines (containing only Code) to strings,
 /// fails if vec contains other types of lines
-fn source_lines_to_string(input: &[SourceLine]) -> Vec<String> {
-    let mut strings: Vec<String> = vec![];
+fn source_lines_to_code_lines(input: &[SourceLine]) -> Vec<CodeLine> {
+    let mut strings: Vec<CodeLine> = vec![];
 
     // Go over all lines
     for line in input {
         if let SourceLineBody::Code(content) = &line.body {
-            strings.push(content.clone());
+            strings.push(CodeLine {
+                body: content.to_owned(),
+                comment: line.comment.to_owned(),
+                location: line.location.to_owned(),
+            });
         } else {
             panic!();
         }
@@ -234,13 +246,14 @@ fn process_includes(
         // If line is include, resolve it. Otherwise copy line
         if let SourceLineBody::Include(file_path) = &line.body {
             // Process new file
-            let mut included_lines = match parse_source_file(&file_path, fi_coord) {
-                Ok(lines) => lines,
-                Err(lines) => {
-                    error = true;
-                    lines
-                }
-            };
+            let mut included_lines =
+                match parse_source_file(&file_path, fi_coord, &Some(line.location.clone())) {
+                    Ok(lines) => lines,
+                    Err(lines) => {
+                        error = true;
+                        lines
+                    }
+                };
             output.append(&mut included_lines)
         } else {
             output.push(line.clone())
@@ -346,4 +359,18 @@ fn resolve_defines(
     }
 
     Ok(result)
+}
+
+/// Converts the preprocessor output to an string to be written to a file
+pub fn convert_preprocessor_output(input: &[CodeLine]) -> String {
+    let mut string = String::new();
+
+    for code_line in input {
+        string.push_str(&code_line.body);
+        string.push_str(" ");
+        string.push_str(&code_line.comment);
+        string.push_str("\r\n");
+    }
+
+    string
 }

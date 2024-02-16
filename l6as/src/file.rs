@@ -1,6 +1,7 @@
 use std::env::current_dir;
 use std::fs;
 use std::io;
+use std::io::Write;
 use std::path::PathBuf;
 
 pub struct FileInclusionCoordinator {
@@ -70,4 +71,20 @@ impl FileInclusionCoordinator {
 pub enum FileInclusionError {
     FileNotFound(PathBuf),
     DoubleInclusion(PathBuf),
+}
+
+// Write file from Vec<u8>
+pub fn write_file(file_path: &PathBuf, data: &str) -> Result<(), io::Error> {
+    // Open file
+    let mut file = fs::OpenOptions::new()
+        .create(true) // Create new file if it doesn't exist
+        .write(true)
+        .truncate(true) // Allow overwriting
+        .open(file_path)?;
+
+    // Write file
+    file.write_all(data.as_bytes())?;
+    file.flush()?;
+
+    Ok(())
 }

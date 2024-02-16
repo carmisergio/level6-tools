@@ -1,5 +1,5 @@
 use super::preprocessor::LineLocation;
-use std::path::PathBuf;
+use std::{io, path::PathBuf};
 
 use colored::Colorize;
 
@@ -64,16 +64,16 @@ impl PreprocessorError {
                 format!("missing value for %define \"{}\"", ident)
             }
             PreprocessorErrorKind::CannotOpenSourceFile(file_path) => {
-                format!("unable to open source file: \"{}\"", file_path.display())
+                format!("unable to find source file \"{}\": ", file_path.display())
             }
             PreprocessorErrorKind::DobleInclusion(file_path) => {
-                format!("double %include for file: \"{}\"", file_path.display())
+                format!("double %include for file \"{}\"", file_path.display())
             }
             PreprocessorErrorKind::DefineUndefined(identifier) => {
-                format!("no %define for identifier: \"{}\"", identifier)
+                format!("no %define for identifier \"{}\"", identifier)
             }
             PreprocessorErrorKind::DefineMultipleDefinition(identifier) => {
-                format!("multiple %define for identifier: \"{}\"", identifier)
+                format!("multiple %define for identifier \"{}\"", identifier)
             }
             PreprocessorErrorKind::Nom(kind) => {
                 format!("unknown nom error: {:?}", kind)
@@ -116,4 +116,12 @@ pub fn print_final_error_msg() {
         "l6as: {} encountered during processing, no output generated",
         "errors".bright_red()
     )
+}
+
+pub fn print_write_file_error_msg(err: io::Error) {
+    println!(
+        "{}: Unable to write output file: {}",
+        "error".bright_red(),
+        err
+    );
 }

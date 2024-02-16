@@ -7,8 +7,12 @@ pub struct Args {
     /// Input file path
     pub input: PathBuf,
 
+    /// Run preprocessor only
+    #[arg(short = 'p', long, action)]
+    pub preprocess: bool,
+
     /// Output file path
-    #[arg(short, long)]
+    #[arg(short = 'o', long)]
     pub output: Option<PathBuf>,
 
     /// Include directories
