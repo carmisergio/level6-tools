@@ -4,7 +4,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_a, is_not, tag, tag_no_case, take},
     character::complete::{alphanumeric1, space0, space1},
-    combinator::{map, opt},
+    combinator::{map, opt, value},
     error::{ErrorKind, ParseError},
     multi::{fold_many0, many0, many1},
     sequence::{delimited, preceded, tuple},
@@ -65,11 +65,29 @@ fn parse_source_line_body(input: &str) -> IResult<&str, SourceLineBody, Preproce
     ))(input)
 }
 
-/// Parses a normal code line
 fn parse_code_line_body(input: &str) -> IResult<&str, SourceLineBody, PreprocessorParseError> {
-    map(is_not(";"), |res: &str| -> SourceLineBody {
-        SourceLineBody::Code(res.trim().to_string())
-    })(input)
+    match map(
+        fold_many0(
+            alt((
+                parse_string_literal_block,
+                map(value(" ", is_a(" \t")), |res| res.to_owned()),
+                map(is_not(" \t"), |res: &str| res.to_owned()),
+            )),
+            String::new,
+            |mut acc: String, item: String| {
+                acc.push_str(&item);
+                acc
+            },
+        ),
+        |res: String| -> SourceLineBody { SourceLineBody::Code(res.trim().to_owned()) },
+    )(input)
+    {
+        Ok(res) => Ok(res),
+        Err(_err) => Err(Err::Failure(PreprocessorParseError {
+            _input: input,
+            kind: PreprocessorErrorKind::DefineMissingIdentifier,
+        })),
+    }
 }
 
 /// Parses %define directive
@@ -148,17 +166,26 @@ fn divide_comment(input: &str) -> (&str, &str) {
 
 /// Parse double quote delimited string literal
 fn parse_string_literal(input: &str) -> IResult<&str, &str> {
-    let (input, res) = delimited(tag("\""), opt(is_not("\"")), tag("\""))(input)?;
-
-    // Handle empty strings
-    Ok((
-        input,
-        match res {
-            Some(string) => string,
+    map(
+        delimited(tag("\""), opt(is_not("\"")), tag("\"")),
+        |res| match res {
+            Some(val) => val,
             None => "",
         },
-    ))
+    )(input)
 }
+// fn parse_string_literal(input: &str) -> IResult<&str, &str> {
+//     let (input, res) = delimited(tag("\""), opt(is_not("\"")), tag("\""))(input)?;
+
+//     // Handle empty strings
+//     Ok((
+//         input,
+//         match res {
+//             Some(string) => string,
+//             None => "",
+//         },
+//     ))
+// }
 
 fn parse_string_literal_block(input: &str) -> IResult<&str, String> {
     let (input, (_, cont, _)) = tuple((
@@ -270,6 +297,39 @@ mod tests {
         ];
         for (input, exp_output, exp_remaining) in tests {
             let (remaining, output) = parse_include_line_body(input).unwrap();
+            assert_eq!(output, exp_output);
+            assert_eq!(remaining, exp_remaining);
+        }
+    }
+
+    #[test]
+    fn parse_code_line_body_succ() {
+        let tests = [
+            (
+                "     lda           $R1,\t 1234",
+                SourceLineBody::Code("lda $R1, 1234".to_owned()),
+                "",
+            ),
+            (
+                "arg1     arg2,arg3\targ4",
+                SourceLineBody::Code("arg1 arg2,arg3 arg4".to_owned()),
+                "",
+            ),
+            ("", SourceLineBody::Code("".to_owned()), ""),
+            ("              ", SourceLineBody::Code("".to_owned()), ""),
+            // (
+            //     "      \"    CIAO     \"        ",
+            //     SourceLineBody::Code("\"    CIAO     \"".to_owned()),
+            //     "",
+            // ),
+            (
+                "ldr, \"string\"",
+                SourceLineBody::Code("ldr, \"string\"".to_owned()),
+                "",
+            ),
+        ];
+        for (input, exp_output, exp_remaining) in tests {
+            let (remaining, output) = parse_code_line_body(input).unwrap();
             assert_eq!(output, exp_output);
             assert_eq!(remaining, exp_remaining);
         }

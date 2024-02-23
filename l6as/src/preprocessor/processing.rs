@@ -268,10 +268,6 @@ fn process_includes(
 }
 
 /*
- * Nom parsers
- */
-
-/*
  * Definition processing
  */
 
@@ -367,8 +363,6 @@ pub fn convert_preprocessor_output(input: &[CodeLine]) -> String {
 
     for code_line in input {
         string.push_str(&code_line.body);
-        string.push_str(" ");
-        string.push_str(&code_line.comment);
         string.push_str("\r\n");
     }
 
