@@ -82,6 +82,28 @@ impl PreprocessorError {
     }
 }
 
+#[derive(Debug)]
+pub enum AssemblerErrorKind {
+    // Unknown
+    Nom(nom::error::ErrorKind),
+}
+
+#[derive(Debug)]
+pub struct AssemblerError {
+    pub kind: AssemblerErrorKind,
+    pub location: Option<LineLocation>,
+}
+
+impl AssemblerError {
+    pub fn message(&self) -> String {
+        match &self.kind {
+            &AssemblerErrorKind::Nom(kind) => {
+                format!("unknown nom error: {:?}", kind)
+            }
+        }
+    }
+}
+
 pub fn print_preprocessor_warning(msg: PreprocessorWarning) {
     println!(
         "{} [preprocessor]: {}",
@@ -99,6 +121,20 @@ pub fn print_preprocessor_warning(msg: PreprocessorWarning) {
 
 pub fn print_preprocessor_error(err: PreprocessorError) {
     println!("{} [preprocessor] {}", "error".bright_red(), err.message());
+
+    if let Some(location) = err.location {
+        println!(
+            "  --> {} {}{} {}",
+            location.file_name.file_name().unwrap().to_str().unwrap(),
+            location.line_n.to_string().bold(),
+            "|".bright_blue(),
+            location.raw_content.trim()
+        );
+    }
+}
+
+pub fn print_assembler_error(err: AssemblerError) {
+    println!("{} [assembler] {}", "error".bright_red(), err.message());
 
     if let Some(location) = err.location {
         println!(

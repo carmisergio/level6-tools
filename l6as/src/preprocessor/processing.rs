@@ -34,9 +34,9 @@ pub struct SourceLine {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct CodeLine {
-    body: String,
-    comment: String,
-    location: LineLocation,
+    pub body: String,
+    pub comment: String,
+    pub location: LineLocation,
 }
 
 /// Preprocess a program

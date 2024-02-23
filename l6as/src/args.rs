@@ -11,6 +11,10 @@ pub struct Args {
     #[arg(short = 'p', long, action)]
     pub preprocess: bool,
 
+    /// Produce listing
+    #[arg(short = 'l', long, action)]
+    pub listing: bool,
+
     /// Output file path
     #[arg(short = 'o', long)]
     pub output: Option<PathBuf>,

@@ -1,16 +1,16 @@
 mod args;
+mod assembler;
 mod file;
 mod logging;
 mod preprocessor;
 use std::{path::PathBuf, process::exit};
 
+use assembler::assemble;
 use clap::Parser;
 
 use file::{write_file, FileInclusionCoordinator};
-use logging::print_write_file_error_msg;
+use logging::{print_final_error_msg, print_write_file_error_msg};
 use preprocessor::{convert_preprocessor_output, preprocess};
-
-use crate::logging::print_final_error_msg;
 
 const DEFAULT_PREPROCESSOR_OUT_FILE: &str = "a.l6s";
 
@@ -82,8 +82,17 @@ fn command_assemble(args: &args::Args, fi_coord: &mut FileInclusionCoordinator) 
         }
     };
 
+    // Assemble
+    let _assembled_lines = match assemble(&code_lines) {
+        Ok(lines) => lines,
+        Err(lines) => {
+            error_encountered = true;
+            lines
+        }
+    };
+
     if !error_encountered {
-        println!("{:#?}", code_lines);
+        // println!("{:#?}", assembled_lines);
         Ok(())
     } else {
         logging::print_final_error_msg();
