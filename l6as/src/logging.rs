@@ -1,3 +1,4 @@
+use super::assembler::Mnemonic;
 use super::preprocessor::LineLocation;
 use std::{io, path::PathBuf};
 
@@ -43,6 +44,7 @@ pub enum PreprocessorErrorKind {
 
     // Unknown
     Nom(nom::error::ErrorKind),
+    Unknown,
 }
 
 #[derive(Debug)]
@@ -78,6 +80,9 @@ impl PreprocessorError {
             PreprocessorErrorKind::Nom(kind) => {
                 format!("unknown nom error: {:?}", kind)
             }
+            PreprocessorErrorKind::Unknown => {
+                format!("unkown error")
+            }
         }
     }
 }
@@ -86,6 +91,16 @@ impl PreprocessorError {
 pub enum AssemblerErrorKind {
     // Unknown
     Nom(nom::error::ErrorKind),
+
+    // Statement parsing
+    MnemonicRequired,
+    UnkownMnemonic(String),
+
+    // Argument parsing
+    WrongNumberOfArguments(Mnemonic, usize, usize),
+    InvalidAddress(String),
+    UnexpectedCharactersAtEndOfArgument(String),
+    InvalidBranchLocation(String),
 }
 
 #[derive(Debug)]
@@ -97,8 +112,26 @@ pub struct AssemblerError {
 impl AssemblerError {
     pub fn message(&self) -> String {
         match &self.kind {
-            &AssemblerErrorKind::Nom(kind) => {
+            AssemblerErrorKind::Nom(kind) => {
                 format!("unknown nom error: {:?}", kind)
+            }
+            AssemblerErrorKind::MnemonicRequired => {
+                format!("a mnemonic is required")
+            }
+            AssemblerErrorKind::UnkownMnemonic(mnemo) => {
+                format!("unkown mnemonic: \"{}\"", mnemo)
+            }
+            AssemblerErrorKind::WrongNumberOfArguments(mnemonic, expected, got) => {
+                format!("{} takes {} arguments, got {}", mnemonic, expected, got)
+            }
+            AssemblerErrorKind::InvalidAddress(arg) => {
+                format!("invalid address: \"{}\"", arg)
+            }
+            AssemblerErrorKind::InvalidBranchLocation(arg) => {
+                format!("invalid branch location: \"{}\"", arg)
+            }
+            AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(arg) => {
+                format!("unexpected characters at end of argument: \"{}\"", arg)
             }
         }
     }

@@ -85,7 +85,7 @@ fn parse_code_line_body(input: &str) -> IResult<&str, SourceLineBody, Preprocess
         Ok(res) => Ok(res),
         Err(_err) => Err(Err::Failure(PreprocessorParseError {
             _input: input,
-            kind: PreprocessorErrorKind::DefineMissingIdentifier,
+            kind: PreprocessorErrorKind::Unknown,
         })),
     }
 }
