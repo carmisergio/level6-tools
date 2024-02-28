@@ -1,6 +1,7 @@
 use super::instructions::Statement;
 use super::parsers::{parse_label, parse_statement};
-use crate::logging::{print_assembler_error, AssemblerError};
+use crate::assembler::codegen::statement_size;
+use crate::logging::{print_assembler_error, AssemblerError, AssemblerErrorKind};
 use crate::preprocessor::{CodeLine, LineLocation};
 use nom::Err;
 use std::collections::HashMap;
@@ -38,7 +39,18 @@ pub fn assemble(input: &[CodeLine]) -> Result<Vec<AssembledLine>, Vec<AssembledL
 
         // Handle inserting label into label table
         if let Some(label) = label {
-            label_table.insert(label, current_address);
+            // Check if label is already defined
+            if !label_table.contains_key(&label) {
+                // Insert label into label table
+                label_table.insert(label, current_address);
+            } else {
+                // Double label definition
+                print_assembler_error(AssemblerError {
+                    kind: AssemblerErrorKind::LabelDoubleDefinition(label),
+                    location: Some(line.location.clone()),
+                });
+                error_occurred = true;
+            }
         }
 
         // Handle adding statements to abstract binary list
@@ -49,11 +61,18 @@ pub fn assemble(input: &[CodeLine]) -> Result<Vec<AssembledLine>, Vec<AssembledL
                 continue;
             }
 
+            // Calculate statement size in words
+            let size = statement_size(&statement, current_address);
+
+            // Add statement to Abstract Binary List
             abstract_binary_list.push(AbstractBinaryLine {
                 address: current_address,
                 statement,
                 location: line.location.clone(),
             });
+
+            // Update current address with size of just processed statement
+            current_address += size;
         }
     }
 

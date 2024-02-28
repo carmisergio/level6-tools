@@ -92,6 +92,9 @@ pub enum AssemblerErrorKind {
     // Unknown
     Nom(nom::error::ErrorKind),
 
+    // Labels
+    LabelDoubleDefinition(String),
+
     // Statement parsing
     MnemonicRequired,
     UnkownMnemonic(String),
@@ -114,6 +117,9 @@ impl AssemblerError {
         match &self.kind {
             AssemblerErrorKind::Nom(kind) => {
                 format!("unknown nom error: {:?}", kind)
+            }
+            AssemblerErrorKind::LabelDoubleDefinition(label) => {
+                format!("Double definition for label: \"{}\"", label)
             }
             AssemblerErrorKind::MnemonicRequired => {
                 format!("a mnemonic is required")

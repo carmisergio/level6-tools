@@ -100,14 +100,8 @@ pub enum StatementKind {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Org(u128),
-    BranchOnIndicators(BranchOnIndicators),
-    BranchOnRegisters(BranchOnRegisters),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct BranchOnIndicators {
-    pub op: BranchOnIndicatorsOpCode,
-    pub branchloc: BranchLocation,
+    BranchOnIndicators(BranchOnIndicatorsOpCode, BranchLocation),
+    // BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
 }
 
 #[derive(Debug, Clone, PartialEq)]

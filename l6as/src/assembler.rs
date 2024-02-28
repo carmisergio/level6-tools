@@ -1,4 +1,5 @@
 mod assemble;
+mod codegen;
 mod instructions;
 mod parsers;
 

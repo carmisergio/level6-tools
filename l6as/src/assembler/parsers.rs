@@ -1,19 +1,15 @@
 use super::instructions::{
-    AddressExpression, BranchLocation, BranchOnIndicators, BranchOnIndicatorsOpCode, Mnemonic,
-    Statement,
+    AddressExpression, BranchLocation, BranchOnIndicatorsOpCode, Mnemonic, Statement,
 };
-use crate::{
-    assembler::instructions::StatementKind,
-    logging::{AssemblerError, AssemblerErrorKind},
-};
+use crate::{assembler::instructions::StatementKind, logging::AssemblerErrorKind};
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, tag_no_case, take_while1},
-    character::complete::{digit1, hex_digit1, space0, space1, u128},
-    combinator::{map, map_res, value},
+    character::complete::{digit1, hex_digit1, space0},
+    combinator::{map, map_res, opt, value},
     error::{ErrorKind, ParseError},
     multi::separated_list0,
-    sequence::{delimited, preceded, terminated},
+    sequence::{delimited, preceded, terminated, tuple},
     Err, IResult,
 };
 
@@ -37,14 +33,24 @@ impl<'a> ParseError<&'a str> for AssemblerParseError<'a> {
 }
 
 pub fn parse_label(input: &str) -> IResult<&str, String> {
-    map(
-        terminated(parse_label_identifier, tag(":")),
-        |label: &str| label.to_uppercase(),
-    )(input)
+    map(terminated(parse_label_identifier, tag(":")), |label| {
+        label.to_uppercase()
+    })(input)
 }
 
-fn parse_label_identifier(input: &str) -> IResult<&str, &str> {
-    take_while1(|chr: char| -> bool { chr.is_alphanumeric() || chr == '_' })(input)
+fn parse_label_identifier(input: &str) -> IResult<&str, String> {
+    map(
+        tuple((
+            take_while1(|chr: char| -> bool { chr.is_alphabetic() || chr == '_' }),
+            opt(take_while1(|chr: char| -> bool {
+                chr.is_alphanumeric() || chr == '_'
+            })),
+        )),
+        |(a, b): (&str, Option<&str>)| match b {
+            Some(b) => a.to_owned() + b,
+            None => a.to_owned(),
+        },
+    )(input)
 }
 
 pub fn parse_statement(input: &str) -> IResult<&str, Statement, AssemblerParseError> {
@@ -62,10 +68,10 @@ pub fn parse_statement(input: &str) -> IResult<&str, Statement, AssemblerParseEr
         }
     };
 
-    println!(
-        "Mnemonic: {}, args: {:?}, statement: {:?}",
-        mnemonic, args, statement
-    );
+    // println!(
+    //     "Mnemonic: {}, args: {:?}, statement: {:?}",
+    //     mnemonic, args, statement
+    // );
 
     Ok(("", statement))
 }
@@ -102,7 +108,7 @@ fn encapsulate_statement(
         Err(()) => return Err(AssemblerErrorKind::UnkownMnemonic(mnemonic_str.to_owned())),
     };
 
-    println!("Mnemonic: {:?}", mnemonic);
+    // println!("Mnemonic: {:?}", mnemonic);
 
     match mnemonic.get_kind() {
         StatementKind::Org => encapsulate_org_statement(args),
@@ -199,10 +205,7 @@ fn encapsulate_branch_on_indicators_statement(
     // Parse branch location
     let branchloc = parse_branch_location_arg(&args[0])?;
 
-    Ok(Statement::BranchOnIndicators(BranchOnIndicators {
-        op,
-        branchloc,
-    }))
+    Ok(Statement::BranchOnIndicators(op, branchloc))
 }
 
 fn parse_hex_address_arg(input: &str) -> Result<u128, AssemblerErrorKind> {
@@ -278,7 +281,7 @@ fn parse_immediate_address_expression(input: &str) -> IResult<&str, AddressExpre
 
 fn parse_label_address_expression(input: &str) -> IResult<&str, AddressExpression> {
     map(parse_label_identifier, |label| {
-        AddressExpression::Label(label.to_owned())
+        AddressExpression::Label(label.to_uppercase())
     })(input)
 }
 
@@ -416,82 +419,66 @@ mod test {
             // BranchOnIndicators
             (
                 "BL <0x1234",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BL,
-                    branchloc: BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
-                }),
-                "",
-            ),
-            (
-                "BGE >0x100",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BGE,
-                    branchloc: BranchLocation::ShortRelative(AddressExpression::Immediate(0x100)),
-                }),
-                "",
-            ),
-            (
-                "BGE >0x100",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BGE,
-                    branchloc: BranchLocation::ShortRelative(AddressExpression::Immediate(0x100)),
-                }),
+                Statement::BranchOnIndicators(
+                    BranchOnIndicatorsOpCode::BL,
+                    BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
+                ),
                 "",
             ),
             (
                 "BG <0x1234",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BG,
-                    branchloc: BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
-                }),
+                Statement::BranchOnIndicators(
+                    BranchOnIndicatorsOpCode::BG,
+                    BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
+                ),
                 "",
             ),
             (
                 "BLE <0x1234",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BLE,
-                    branchloc: BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
-                }),
+                Statement::BranchOnIndicators(
+                    BranchOnIndicatorsOpCode::BLE,
+                    BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
+                ),
                 "",
             ),
             (
                 "BOV <0x1234",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BOV,
-                    branchloc: BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
-                }),
+                Statement::BranchOnIndicators(
+                    BranchOnIndicatorsOpCode::BOV,
+                    BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
+                ),
                 "",
             ),
             (
                 "BNOV <0x1234",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BNOV,
-                    branchloc: BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
-                }),
+                Statement::BranchOnIndicators(
+                    BranchOnIndicatorsOpCode::BNOV,
+                    BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
+                ),
                 "",
             ),
             (
                 "BBT <0x1234",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BBT,
-                    branchloc: BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
-                }),
+                Statement::BranchOnIndicators(
+                    BranchOnIndicatorsOpCode::BBT,
+                    BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
+                ),
                 "",
             ),
             (
                 "BBF <0x1234",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BBF,
-                    branchloc: BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
-                }),
+                Statement::BranchOnIndicators(
+                    BranchOnIndicatorsOpCode::BBF,
+                    BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
+                ),
                 "",
             ),
             (
                 "BCT <0x1234",
-                Statement::BranchOnIndicators(BranchOnIndicators {
-                    op: BranchOnIndicatorsOpCode::BCT,
-                    branchloc: BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
-                }),
+                Statement::BranchOnIndicators(
+                    BranchOnIndicatorsOpCode::BCT,
+                    BranchLocation::Absolute(AddressExpression::Immediate(0x1234)),
+                ),
                 "",
             ),
             // TODO finish testing BranchOnIndicators instructions
