@@ -104,6 +104,13 @@ pub enum AssemblerErrorKind {
     InvalidAddress(String),
     UnexpectedCharactersAtEndOfArgument(String),
     InvalidBranchLocation(String),
+
+    // Code Generation
+    AddressOutOfRange(u128),
+    LongDisplacementOutOfRange(i128),
+    ShortDisplacementOutOfRange(i128),
+    ShortDisplacementMustNotBe0Or1,
+    UndefinedLabel(String),
 }
 
 #[derive(Debug)]
@@ -138,6 +145,21 @@ impl AssemblerError {
             }
             AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(arg) => {
                 format!("unexpected characters at end of argument: \"{}\"", arg)
+            }
+            AssemblerErrorKind::AddressOutOfRange(addr) => {
+                format!("address out of range: {}", addr)
+            }
+            AssemblerErrorKind::LongDisplacementOutOfRange(addr) => {
+                format!("long displacement out of range: {}", addr)
+            }
+            AssemblerErrorKind::ShortDisplacementOutOfRange(addr) => {
+                format!("short displacement out of range: {}", addr)
+            }
+            AssemblerErrorKind::ShortDisplacementMustNotBe0Or1 => {
+                format!("short displacement must not be 0 or 1")
+            }
+            AssemblerErrorKind::UndefinedLabel(label) => {
+                format!("undefined label: \"{}\"", label)
             }
         }
     }

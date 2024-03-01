@@ -1,7 +1,8 @@
 mod assemble;
 mod codegen;
-mod instructions;
 mod parsers;
+mod size;
+mod statements;
 
 pub use assemble::assemble;
-pub use instructions::Mnemonic;
+pub use statements::Mnemonic;

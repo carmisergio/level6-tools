@@ -1,7 +1,7 @@
-use super::instructions::{
+use super::statements::{
     AddressExpression, BranchLocation, BranchOnIndicatorsOpCode, Mnemonic, Statement,
 };
-use crate::{assembler::instructions::StatementKind, logging::AssemblerErrorKind};
+use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, tag_no_case, take_while1},
@@ -255,13 +255,13 @@ fn parse_branch_location_absolute(input: &str) -> IResult<&str, BranchLocation> 
 
 fn parse_branch_location_long_relative(input: &str) -> IResult<&str, BranchLocation> {
     map(parse_address_expression, |addr_exp| {
-        BranchLocation::LongRelative(addr_exp)
+        BranchLocation::LongDisplacement(addr_exp)
     })(input)
 }
 
 fn parse_branch_location_short_relative(input: &str) -> IResult<&str, BranchLocation> {
     map(preceded(tag(">"), parse_address_expression), |addr_exp| {
-        BranchLocation::ShortRelative(addr_exp)
+        BranchLocation::ShortDisplacement(addr_exp)
     })(input)
 }
 
@@ -312,7 +312,7 @@ pub fn parse_hex_pos_integer(input: &str) -> IResult<&str, u128> {
 mod test {
     use std::vec;
 
-    use crate::assembler::instructions::{
+    use crate::assembler::statements::{
         AddressExpression, BranchLocation, BranchOnIndicatorsOpCode,
     };
 
@@ -507,27 +507,27 @@ mod test {
             ),
             (
                 "0x99",
-                BranchLocation::LongRelative(AddressExpression::Immediate(0x99)),
+                BranchLocation::LongDisplacement(AddressExpression::Immediate(0x99)),
             ),
             (
                 "loop",
-                BranchLocation::LongRelative(AddressExpression::Label("loop".to_owned())),
+                BranchLocation::LongDisplacement(AddressExpression::Label("LOOP".to_owned())),
             ),
             (
                 "-10",
-                BranchLocation::LongRelative(AddressExpression::WordDisplacement(-10)),
+                BranchLocation::LongDisplacement(AddressExpression::WordDisplacement(-10)),
             ),
             (
                 ">0x1234",
-                BranchLocation::ShortRelative(AddressExpression::Immediate(0x1234)),
+                BranchLocation::ShortDisplacement(AddressExpression::Immediate(0x1234)),
             ),
             (
                 ">DO_THING",
-                BranchLocation::ShortRelative(AddressExpression::Label("DO_THING".to_owned())),
+                BranchLocation::ShortDisplacement(AddressExpression::Label("DO_THING".to_owned())),
             ),
             (
                 ">+9999",
-                BranchLocation::ShortRelative(AddressExpression::WordDisplacement(9999)),
+                BranchLocation::ShortDisplacement(AddressExpression::WordDisplacement(9999)),
             ),
         ];
         for (input, exp_output) in tests {

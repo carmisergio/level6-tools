@@ -154,8 +154,8 @@ pub enum BranchOnRegistersOpCode {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BranchLocation {
     Absolute(AddressExpression),
-    LongRelative(AddressExpression),
-    ShortRelative(AddressExpression),
+    LongDisplacement(AddressExpression),
+    ShortDisplacement(AddressExpression),
 }
 
 #[derive(Debug, Clone, PartialEq)]

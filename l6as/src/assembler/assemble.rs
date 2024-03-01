@@ -1,6 +1,6 @@
-use super::instructions::Statement;
 use super::parsers::{parse_label, parse_statement};
-use crate::assembler::codegen::statement_size;
+use super::statements::Statement;
+use crate::assembler::size::statement_size;
 use crate::logging::{print_assembler_error, AssemblerError, AssemblerErrorKind};
 use crate::preprocessor::{CodeLine, LineLocation};
 use nom::Err;
