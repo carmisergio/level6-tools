@@ -160,7 +160,7 @@ pub enum BranchLocation {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AddressExpression {
-    Immediate(u128),
+    Immediate(u64),
     Label(String),
     WordDisplacement(i128),
 }

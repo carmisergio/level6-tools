@@ -4,8 +4,8 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
+bit-struct = "0.3.2"
 clap = { version = "4.4.18", features = ["derive"] }
 colored = "2.1.0"
 fs = "0.0.5"
 nom = "7.1.3"
-proc-bitfield = "0.3.1"

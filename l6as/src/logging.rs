@@ -106,10 +106,11 @@ pub enum AssemblerErrorKind {
     InvalidBranchLocation(String),
 
     // Code Generation
-    AddressOutOfRange(u128),
+    AddressOutOfRange(u64),
     LongDisplacementOutOfRange(i128),
     ShortDisplacementOutOfRange(i128),
     ShortDisplacementMustNotBe0Or1,
+    WordDisplacementOutOfRange(i128),
     UndefinedLabel(String),
 }
 
@@ -157,6 +158,9 @@ impl AssemblerError {
             }
             AssemblerErrorKind::ShortDisplacementMustNotBe0Or1 => {
                 format!("short displacement must not be 0 or 1")
+            }
+            AssemblerErrorKind::WordDisplacementOutOfRange(addr) => {
+                format!("word displacement out of range: {}", addr)
             }
             AssemblerErrorKind::UndefinedLabel(label) => {
                 format!("undefined label: \"{}\"", label)
