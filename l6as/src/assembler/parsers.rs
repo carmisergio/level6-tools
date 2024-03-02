@@ -208,9 +208,9 @@ fn encapsulate_branch_on_indicators_statement(
     Ok(Statement::BranchOnIndicators(op, branchloc))
 }
 
-fn parse_hex_address_arg(input: &str) -> Result<u128, AssemblerErrorKind> {
+fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {
     // Parse address
-    let (input, address) = match parse_hex_u128(input) {
+    let (input, address) = match parse_hex_u64(input) {
         Ok(address) => address,
         Err(_) => return Err(AssemblerErrorKind::InvalidAddress(input.to_owned())),
     };
@@ -299,13 +299,6 @@ fn parse_displacement_address_expression(input: &str) -> IResult<&str, AddressEx
     ))
 }
 
-pub fn parse_hex_u128(input: &str) -> IResult<&str, u128> {
-    preceded(
-        tag_no_case("0x"),
-        map_res(hex_digit1, |digits| u128::from_str_radix(digits, 16)),
-    )(input)
-}
-
 pub fn parse_hex_u64(input: &str) -> IResult<&str, u64> {
     preceded(
         tag_no_case("0x"),
@@ -356,17 +349,17 @@ mod test {
     }
 
     #[test]
-    fn parse_hex_integer_succ() {
+    fn parse_hex_u64_succ() {
         let tests = [("0x00 ciaone", 0, " ciaone"), ("0x11", 17, "")];
         for (input, exp_output, exp_remaining) in tests {
-            let (remaining, output) = parse_hex_u128(input).unwrap();
+            let (remaining, output) = parse_hex_u64(input).unwrap();
             assert_eq!(output, exp_output);
             assert_eq!(remaining, exp_remaining);
         }
     }
 
     #[test]
-    fn parse_hex_integer_err() {
+    fn parse_hex_u64_err() {
         let tests = [
             ("", false),
             ("abcde", false),
@@ -374,7 +367,7 @@ mod test {
             ("0x999999999999999999999999999999999", false),
         ];
         for (input, exp_failure) in tests {
-            let err = parse_hex_u128(input).unwrap_err();
+            let err = parse_hex_u64(input).unwrap_err();
 
             match err {
                 Err::Incomplete(_) => panic!(),

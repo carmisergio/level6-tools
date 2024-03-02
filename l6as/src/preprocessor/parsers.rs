@@ -1,4 +1,4 @@
-use super::processing::{DefinitionChunk, SourceLineBody};
+use super::preprocess::{DefinitionChunk, SourceLineBody};
 use crate::logging::PreprocessorErrorKind;
 use nom::{
     branch::alt,

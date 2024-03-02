@@ -356,15 +356,3 @@ fn resolve_defines(
 
     Ok(result)
 }
-
-/// Converts the preprocessor output to an string to be written to a file
-pub fn convert_preprocessor_output(input: &[CodeLine]) -> String {
-    let mut string = String::new();
-
-    for code_line in input {
-        string.push_str(&code_line.body);
-        string.push_str("\r\n");
-    }
-
-    string
-}

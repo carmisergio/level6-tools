@@ -4,5 +4,5 @@ mod parsers;
 mod size;
 mod statements;
 
-pub use assemble::assemble;
+pub use assemble::{assemble, AssembledLine};
 pub use statements::Mnemonic;

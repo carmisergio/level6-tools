@@ -1,5 +1,6 @@
 use super::parsers::{parse_label, parse_statement};
 use super::statements::Statement;
+use crate::assembler::codegen::codegen;
 use crate::assembler::size::statement_size;
 use crate::logging::{print_assembler_error, AssemblerError, AssemblerErrorKind};
 use crate::preprocessor::{CodeLine, LineLocation};
@@ -8,25 +9,26 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 struct AbstractBinaryLine {
-    address: u128,
+    address: u64,
     statement: Statement,
     location: LineLocation,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssembledLine {
-    data: Vec<u8>,
-    location: LineLocation,
+    pub address: u64,
+    pub data: Vec<u16>,
+    pub location: LineLocation,
 }
 
 /// Assembles a list of `CodeLine`s to a list of `AssembledLine`s, containing the raw machine code
 pub fn assemble(input: &[CodeLine]) -> Result<Vec<AssembledLine>, Vec<AssembledLine>> {
     let mut error_occurred = false;
-    let mut current_address: u128 = 0;
+    let mut current_address: u64 = 0;
 
     // Create abstract binary list
     let mut abstract_binary_list: Vec<AbstractBinaryLine> = vec![];
-    let mut label_table: HashMap<String, u128> = HashMap::new();
+    let mut label_table: HashMap<String, u64> = HashMap::new();
     for line in input {
         // Parse code line
         let (label, statement) = match parse_code_line(&line.body, &line.location) {
@@ -83,15 +85,24 @@ pub fn assemble(input: &[CodeLine]) -> Result<Vec<AssembledLine>, Vec<AssembledL
     let mut result: Vec<AssembledLine> = vec![];
     for line in abstract_binary_list {
         // Generate binary for this statement
-        let data: Vec<u8> = vec![0x01, 0x02];
+        let data: Vec<u16> = match codegen(&line.statement, line.address, &label_table) {
+            Ok(res) => res,
+            Err(err) => {
+                error_occurred = true;
+                print_assembler_error(AssemblerError {
+                    kind: err,
+                    location: Some(line.location),
+                });
+                continue;
+            }
+        };
 
         result.push(AssembledLine {
+            address: line.address,
             data,
             location: line.location,
         })
     }
-
-    let result: Vec<AssembledLine> = vec![];
 
     // Return result based on whether an error occurred or not
     match error_occurred {

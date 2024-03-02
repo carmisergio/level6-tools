@@ -99,7 +99,7 @@ pub enum StatementKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
-    Org(u128),
+    Org(u64),
     BranchOnIndicators(BranchOnIndicatorsOpCode, BranchLocation),
     // BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
 }

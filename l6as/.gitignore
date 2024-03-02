@@ -11,6 +11,8 @@ target/
 
 # Source files I may leave
 *.l6s
+*.bin
+*.txt
 
 # VSCodeCounter
 .VSCodeCounter/

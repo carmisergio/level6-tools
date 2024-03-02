@@ -2,17 +2,23 @@ mod args;
 mod assembler;
 mod file;
 mod logging;
+mod output;
 mod preprocessor;
 use std::{path::PathBuf, process::exit};
 
 use assembler::assemble;
 use clap::Parser;
 
-use file::{write_file, FileInclusionCoordinator};
-use logging::{print_final_error_msg, print_write_file_error_msg};
-use preprocessor::{convert_preprocessor_output, preprocess};
+use file::FileInclusionCoordinator;
+use logging::print_final_error_msg;
+use output::{
+    write_assembler_binary_output, write_assembler_listing_output, write_preprocessor_output,
+};
+use preprocessor::preprocess;
 
 const DEFAULT_PREPROCESSOR_OUT_FILE: &str = "a.l6s";
+const DEFAULT_ASSEMBLER_BINARY_OUT_FILE: &str = "a.bin";
+const DEFAULT_ASSEMBLER_LISTING_OUT_FILE: &str = "a.txt";
 
 fn main() {
     let args = args::Args::parse();
@@ -54,13 +60,7 @@ fn command_preprocessor_only(
     match preprocess(&args.input, fi_coord) {
         Ok(lines) => {
             // Write output
-            match write_file(&out_file, &convert_preprocessor_output(&lines)) {
-                Ok(_) => Ok(()),
-                Err(err) => {
-                    print_write_file_error_msg(err);
-                    Err(())
-                }
-            }
+            write_preprocessor_output(&out_file, &lines)
         }
         Err(_err) => {
             print_final_error_msg();
@@ -83,7 +83,7 @@ fn command_assemble(args: &args::Args, fi_coord: &mut FileInclusionCoordinator) 
     };
 
     // Assemble
-    let _assembled_lines = match assemble(&code_lines) {
+    let assembled_lines = match assemble(&code_lines) {
         Ok(lines) => lines,
         Err(lines) => {
             error_encountered = true;
@@ -92,8 +92,23 @@ fn command_assemble(args: &args::Args, fi_coord: &mut FileInclusionCoordinator) 
     };
 
     if !error_encountered {
-        // println!("{:#?}", assembled_lines);
-        Ok(())
+        if args.listing {
+            // Get output file name
+            let out_file = match &args.output {
+                Some(file) => file.clone(),
+                None => PathBuf::from(DEFAULT_ASSEMBLER_BINARY_OUT_FILE),
+            };
+            // Write binary output
+            write_assembler_binary_output(&out_file, &assembled_lines)
+        } else {
+            // Get output file name
+            let out_file = match &args.output {
+                Some(file) => file.clone(),
+                None => PathBuf::from(DEFAULT_ASSEMBLER_LISTING_OUT_FILE),
+            };
+            // Write listing
+            write_assembler_listing_output(&out_file, &assembled_lines)
+        }
     } else {
         logging::print_final_error_msg();
         Err(())

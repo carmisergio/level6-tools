@@ -1,5 +1,5 @@
 mod parsers;
-mod processing;
+mod preprocess;
 
-pub use processing::{convert_preprocessor_output, preprocess};
-pub use processing::{CodeLine, LineLocation};
+pub use preprocess::preprocess;
+pub use preprocess::{CodeLine, LineLocation};

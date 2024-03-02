@@ -8,11 +8,11 @@ pub struct Args {
     pub input: PathBuf,
 
     /// Run preprocessor only
-    #[arg(short = 'p', long, action)]
+    #[arg(short = 'p', long, action, conflicts_with = "listing")]
     pub preprocess: bool,
 
     /// Produce listing
-    #[arg(short = 'l', long, action)]
+    #[arg(short = 'l', long, action, conflicts_with = "preprocess")]
     pub listing: bool,
 
     /// Output file path

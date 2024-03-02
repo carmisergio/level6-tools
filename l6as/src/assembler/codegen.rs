@@ -41,7 +41,7 @@ fn codegen_branch_on_instructions(
         get_branch_location_field_value(branchloc, cur_addr, label_table)?;
 
     // Build instruction word
-    let mut inst_word = BranchOnIndicatorsInstructionWord::new(
+    let inst_word = BranchOnIndicatorsInstructionWord::new(
         u4!(0b0000),
         get_branch_on_instructions_op_value(op),
         branchloc_field,
@@ -53,36 +53,6 @@ fn codegen_branch_on_instructions(
 
     Ok(result)
 }
-// fn codegen_branch_on_instructions(
-//     op: &BranchOnIndicatorsOpCode,
-//     branchloc: &BranchLocation,
-//     cur_addr: u64,
-//     label_table: &HashMap<String, u64>,
-// ) -> Result<Vec<u16>, AssemblerErrorKind> {
-//     // Instruction format
-//     let mut inst_word = BranchOnIndicatorsInstructionWord(0);
-//     inst_word.set_header(0b0000); // Instruction header
-
-//     // Generate op code
-//     inst_word.set_op(get_branch_on_instructions_op_value(op));
-
-//     // Generate branch location field
-//     let (branchloc_field, mut extra_words) =
-//         get_branch_location_field_value(branchloc, cur_addr, label_table)?;
-//     inst_word.set_branchloc(branchloc_field);
-
-//     // Package instruction into word
-//     let inst_word: u16 = inst_word.try_into().unwrap();
-
-//     println!("{:#b}", inst_word);
-
-//     // Concatenate words
-//     let mut result = vec![inst_word.to_be()];
-//     result.append(&mut extra_words); // Add potential extra word from branchloc field
-
-//     Ok(result)
-// }
-
 fn get_branch_on_instructions_op_value(op: &BranchOnIndicatorsOpCode) -> u5 {
     match op {
         BranchOnIndicatorsOpCode::BL => u5!(0b00100),
@@ -213,12 +183,6 @@ fn twos_complement_u16(input: i16) -> u16 {
     u16::from_be_bytes(bytes)
 }
 
-/// Returns u8 containing a two's complement encoded relative number
-fn twos_complement_u8(input: i8) -> u8 {
-    let bytes = input.to_be_bytes();
-    u8::from_be_bytes(bytes)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,21 +256,6 @@ mod tests {
     }
 
     #[test]
-    fn twos_complement_u8_succ() {
-        let tests = [
-            (0, 0b00000000),
-            (12, 0b000001100),
-            (-12, 0b11110100),
-            (i8::MAX, 0b01111111),
-            (i8::MIN, 0b10000000),
-        ];
-
-        for (input, exp) in tests {
-            assert_eq!(twos_complement_u8(input), exp);
-        }
-    }
-
-    #[test]
     fn codegen_branch_on_indicators_instructions_succ() {
         let tests = [
             (
@@ -344,14 +293,4 @@ mod tests {
             );
         }
     }
-
-    // #[test]
-    // fn codegen_branch_on_instructions_succ() {
-    //     let codegen_res = codegen_branch_on_instructions(
-    //         &BranchOnIndicatorsOpCode::B,
-    //         &BranchLocation::IndirectDisplacement(AddressExpression::Immediate(0x00)),
-    //         0,
-    //         ,
-    //     );
-    // }
 }

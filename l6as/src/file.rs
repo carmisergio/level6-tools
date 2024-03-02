@@ -73,8 +73,8 @@ pub enum FileInclusionError {
     DoubleInclusion(PathBuf),
 }
 
-// Write file from Vec<u8>
-pub fn write_file(file_path: &PathBuf, data: &str) -> Result<(), io::Error> {
+// Write file from [u8]
+pub fn write_file(file_path: &PathBuf, data: &[u8]) -> Result<(), io::Error> {
     // Open file
     let mut file = fs::OpenOptions::new()
         .create(true) // Create new file if it doesn't exist
@@ -83,7 +83,7 @@ pub fn write_file(file_path: &PathBuf, data: &str) -> Result<(), io::Error> {
         .open(file_path)?;
 
     // Write file
-    file.write_all(data.as_bytes())?;
+    file.write_all(data)?;
     file.flush()?;
 
     Ok(())
