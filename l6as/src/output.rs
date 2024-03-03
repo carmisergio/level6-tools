@@ -77,11 +77,11 @@ fn generate_line_listing(line: &AssembledLine) -> String {
         // Compute address column
         let (address_column, code_column) = if words_written == 0 {
             (
-                format!("{:0>4X}", line.address),
+                format!("{:0>5X}:", line.address),
                 line.location.raw_content.clone(),
             )
         } else {
-            ("    ".to_owned(), "".to_owned())
+            ("      ".to_owned(), "".to_owned())
         };
 
         // Calculate instruction words field
@@ -97,7 +97,7 @@ fn generate_line_listing(line: &AssembledLine) -> String {
         words_written += 2;
 
         output.push_str(&format!(
-            "{}:  {}   {}\r\n",
+            "{}  {}  {}\r\n",
             address_column, words_column, code_column
         ))
     }

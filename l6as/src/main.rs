@@ -92,7 +92,7 @@ fn command_assemble(args: &args::Args, fi_coord: &mut FileInclusionCoordinator) 
     };
 
     if !error_encountered {
-        if args.listing {
+        if !args.listing {
             // Get output file name
             let out_file = match &args.output {
                 Some(file) => file.clone(),
