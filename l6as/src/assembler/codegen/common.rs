@@ -20,6 +20,7 @@ pub fn codegen(
         Statement::BranchOnIndicators(op, branchloc) => {
             codegen_branch_on_instructions(op, branchloc, cur_addr, label_table)
         }
+        Statement::BranchOnRegisters(op, reg, branchloc) => Ok(vec![0x9999]),
     }
 }
 
@@ -38,7 +39,7 @@ pub fn get_branch_location_field_value(
             // Verify address fits in field
             match TryInto::<u16>::try_into(addr) {
                 Ok(addr) => (i7!(0), vec![addr]),
-                Err(_) => return Err(AssemblerErrorKind::AddressOutOfRange(addr)),
+                Err(_) => return Err(AssemblerErrorKind::BranchAddressOutOfRange(addr)),
             }
         }
         // Long displacement branch location
@@ -52,7 +53,11 @@ pub fn get_branch_location_field_value(
             // Fit displacement in 16 bits
             let displacement: i16 = match displacement.try_into() {
                 Ok(res) => res,
-                Err(_) => return Err(AssemblerErrorKind::LongDisplacementOutOfRange(displacement)),
+                Err(_) => {
+                    return Err(AssemblerErrorKind::BranchLongDisplacementOutOfRange(
+                        displacement,
+                    ))
+                }
             };
 
             (i7!(1), vec![twos_complement_u16(displacement)])
@@ -67,24 +72,32 @@ pub fn get_branch_location_field_value(
 
             // Check displacement distance
             if displacement > 63 || displacement < -64 {
-                return Err(AssemblerErrorKind::ShortDisplacementOutOfRange(
+                return Err(AssemblerErrorKind::BranchShortDisplacementOutOfRange(
                     displacement,
                 ));
             }
             if displacement == 0 || displacement == 1 {
-                return Err(AssemblerErrorKind::ShortDisplacementMustNotBe0Or1);
+                return Err(AssemblerErrorKind::BranchShortDisplacementMustNotBe0Or1);
             }
 
             // Fit displacement in 8 bits TODO find way to make this more elegant
             let displacement_i8: i8 = match displacement.try_into() {
                 Ok(res) => res,
-                Err(_) => return Err(AssemblerErrorKind::LongDisplacementOutOfRange(displacement)),
+                Err(_) => {
+                    return Err(AssemblerErrorKind::BranchLongDisplacementOutOfRange(
+                        displacement,
+                    ))
+                }
             };
 
             // Fit displacement in 7 bits
             let displacement_i7 = match i7::new(displacement_i8) {
                 Some(res) => res,
-                None => return Err(AssemblerErrorKind::LongDisplacementOutOfRange(displacement)),
+                None => {
+                    return Err(AssemblerErrorKind::BranchLongDisplacementOutOfRange(
+                        displacement,
+                    ))
+                }
             };
 
             (displacement_i7, vec![])

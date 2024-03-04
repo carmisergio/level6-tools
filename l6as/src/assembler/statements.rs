@@ -2,7 +2,10 @@ use core::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mnemonic {
+    // Assembler directives
     DotORG,
+
+    // Branch on Registers instructions
     BL,
     BGE,
     BG,
@@ -24,13 +27,28 @@ pub enum Mnemonic {
     BSU,
     BSE,
     B,
+
+    // Branch on Indicators instructions
+    BLZ,
+    BGEZ,
+    BEZ,
+    BNEZ,
+    BGZ,
+    BLEZ,
+    BODD,
+    BEVN,
+    BINC,
+    BDEC,
 }
 
 impl Mnemonic {
     // Get StatementKind for each mnemonic
     pub fn get_kind(&self) -> StatementKind {
         match *self {
+            // Assembler directives
             Self::DotORG => StatementKind::Org,
+
+            // Branch on Indicators instructions
             Self::BL => StatementKind::BranchOnIndicators,
             Self::BGE => StatementKind::BranchOnIndicators,
             Self::BG => StatementKind::BranchOnIndicators,
@@ -52,6 +70,18 @@ impl Mnemonic {
             Self::BSU => StatementKind::BranchOnIndicators,
             Self::BSE => StatementKind::BranchOnIndicators,
             Self::B => StatementKind::BranchOnIndicators,
+
+            // Branch on Registers instructions
+            Self::BLZ => StatementKind::BranchOnRegisters,
+            Self::BGEZ => StatementKind::BranchOnRegisters,
+            Self::BEZ => StatementKind::BranchOnRegisters,
+            Self::BNEZ => StatementKind::BranchOnRegisters,
+            Self::BGZ => StatementKind::BranchOnRegisters,
+            Self::BLEZ => StatementKind::BranchOnRegisters,
+            Self::BODD => StatementKind::BranchOnRegisters,
+            Self::BEVN => StatementKind::BranchOnRegisters,
+            Self::BINC => StatementKind::BranchOnRegisters,
+            Self::BDEC => StatementKind::BranchOnRegisters,
         }
     }
 }
@@ -59,7 +89,10 @@ impl Mnemonic {
 impl Mnemonic {
     fn display_value(&self) -> &str {
         match *self {
+            // Assembler directives
             Self::DotORG => ".ORG",
+
+            // Branch on Indicators instructions
             Self::BL => "BL",
             Self::BGE => "BGE",
             Self::BG => "BG",
@@ -81,6 +114,17 @@ impl Mnemonic {
             Self::BSU => "BSU",
             Self::BSE => "BSE",
             Self::B => "B",
+            // Branch on Registers instructions
+            Self::BLZ => "BLZ",
+            Self::BGEZ => "BGEZ",
+            Self::BEZ => "BEZ",
+            Self::BNEZ => "BNEZ",
+            Self::BGZ => "BGZ",
+            Self::BLEZ => "BLEZ",
+            Self::BODD => "BODD",
+            Self::BEVN => "BEVN",
+            Self::BINC => "BINC",
+            Self::BDEC => "BDEC",
         }
     }
 }
@@ -95,13 +139,14 @@ impl fmt::Display for Mnemonic {
 pub enum StatementKind {
     Org,
     BranchOnIndicators,
+    BranchOnRegisters,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Org(u64),
     BranchOnIndicators(BranchOnIndicatorsOpCode, BranchLocation),
-    // BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
+    BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
 }
 
 #[derive(Debug, Clone, PartialEq)]

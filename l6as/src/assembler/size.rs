@@ -1,21 +1,17 @@
-use super::statements::{BranchLocation, BranchOnIndicatorsOpCode, Statement};
+use super::statements::{BranchLocation, Statement};
 
 /// Computes the size of a statement in memory (in words)
 pub fn statement_size(statement: &Statement, _cur_addr: u64) -> u64 {
     // Compute different size depending on the kind of statement
     match statement {
         Statement::Org(_) => 0,
-        Statement::BranchOnIndicators(op, branchloc) => {
-            branch_on_indicators_inst_size(op, branchloc)
-        }
+        Statement::BranchOnIndicators(_op, branchloc) => branch_inst_size(branchloc),
+        Statement::BranchOnRegisters(_op, _reg, branchloc) => branch_inst_size(branchloc),
     }
 }
 
 /// Computes the size of a Branch on Indicators instruction
-pub fn branch_on_indicators_inst_size(
-    _op: &BranchOnIndicatorsOpCode,
-    branchloc: &BranchLocation,
-) -> u64 {
+pub fn branch_inst_size(branchloc: &BranchLocation) -> u64 {
     1 + branchloc_extra_words(branchloc)
 }
 

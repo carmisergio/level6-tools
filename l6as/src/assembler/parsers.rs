@@ -1,5 +1,6 @@
 use super::statements::{
-    AddressExpression, BranchLocation, BranchOnIndicatorsOpCode, Mnemonic, Statement,
+    AddressExpression, BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode,
+    DataRegister, Mnemonic, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -108,12 +109,13 @@ fn encapsulate_statement(
         Err(()) => return Err(AssemblerErrorKind::UnkownMnemonic(mnemonic_str.to_owned())),
     };
 
-    // println!("Mnemonic: {:?}", mnemonic);
-
     match mnemonic.get_kind() {
         StatementKind::Org => encapsulate_org_statement(args),
         StatementKind::BranchOnIndicators => {
             encapsulate_branch_on_indicators_statement(mnemonic, args)
+        }
+        StatementKind::BranchOnRegisters => {
+            encapsulate_branch_on_registers_statement(mnemonic, args)
         }
     }
 }
@@ -121,7 +123,10 @@ fn encapsulate_statement(
 /// Matches a mnemonic string to its enum type
 fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
     match input {
+        // Assembler directives
         ".ORG" => Ok(Mnemonic::DotORG),
+
+        // Branch on Indicators instructions
         "BL" => Ok(Mnemonic::BL),
         "BGE" => Ok(Mnemonic::BGE),
         "BG" => Ok(Mnemonic::BG),
@@ -143,6 +148,18 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
         "BSU" => Ok(Mnemonic::BSU),
         "BSE" => Ok(Mnemonic::BSE),
         "B" => Ok(Mnemonic::B),
+
+        // Branch on Registers instructions
+        "BLZ" => Ok(Mnemonic::BLZ),
+        "BGEZ" => Ok(Mnemonic::BGEZ),
+        "BEZ" => Ok(Mnemonic::BEZ),
+        "BNEZ" => Ok(Mnemonic::BNEZ),
+        "BGZ" => Ok(Mnemonic::BGZ),
+        "BLEZ" => Ok(Mnemonic::BLEZ),
+        "BODD" => Ok(Mnemonic::BODD),
+        "BEVN" => Ok(Mnemonic::BEVN),
+        "BINC" => Ok(Mnemonic::BINC),
+        "BDEC" => Ok(Mnemonic::BDEC),
         _ => Err(()),
     }
 }
@@ -208,6 +225,43 @@ fn encapsulate_branch_on_indicators_statement(
     Ok(Statement::BranchOnIndicators(op, branchloc))
 }
 
+fn encapsulate_branch_on_registers_statement(
+    mnemo: Mnemonic,
+    args: &[&str],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match mnemo {
+        Mnemonic::BLZ => BranchOnRegistersOpCode::BLZ,
+        Mnemonic::BGEZ => BranchOnRegistersOpCode::BGEZ,
+        Mnemonic::BEZ => BranchOnRegistersOpCode::BEZ,
+        Mnemonic::BNEZ => BranchOnRegistersOpCode::BNEZ,
+        Mnemonic::BGZ => BranchOnRegistersOpCode::BGZ,
+        Mnemonic::BLEZ => BranchOnRegistersOpCode::BLEZ,
+        Mnemonic::BODD => BranchOnRegistersOpCode::BODD,
+        Mnemonic::BEVN => BranchOnRegistersOpCode::BEVN,
+        Mnemonic::BINC => BranchOnRegistersOpCode::BINC,
+        Mnemonic::BDEC => BranchOnRegistersOpCode::BDEC,
+        _ => panic!("invalid OpCode for BranchOnRegisters"),
+    };
+
+    // Parse data register
+    let reg = parse_data_register_arg(args[0])?;
+
+    // Parse branch location
+    let branchloc = parse_branch_location_arg(&args[1])?;
+
+    Ok(Statement::BranchOnRegisters(op, reg, branchloc))
+}
+
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {
     // Parse address
     let (input, address) = match parse_hex_u64(input) {
@@ -263,6 +317,35 @@ fn parse_branch_location_short_relative(input: &str) -> IResult<&str, BranchLoca
     map(preceded(tag(">"), parse_address_expression), |addr_exp| {
         BranchLocation::ShortDisplacement(addr_exp)
     })(input)
+}
+
+fn parse_data_register_arg(input: &str) -> Result<DataRegister, AssemblerErrorKind> {
+    // Parse address
+    let (input, branchloc) = match preceded(tag("$"), parse_data_register)(input) {
+        Ok(address) => address,
+        Err(_) => return Err(AssemblerErrorKind::InvalidDataRegister(input.to_owned())),
+    };
+
+    // Check for extra characters
+    if input.len() > 0 {
+        return Err(AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(
+            input.to_owned(),
+        ));
+    }
+
+    Ok(branchloc)
+}
+
+fn parse_data_register(input: &str) -> IResult<&str, DataRegister> {
+    alt((
+        value(DataRegister::R1, tag_no_case("R1")),
+        value(DataRegister::R2, tag_no_case("R2")),
+        value(DataRegister::R3, tag_no_case("R3")),
+        value(DataRegister::R4, tag_no_case("R4")),
+        value(DataRegister::R5, tag_no_case("R5")),
+        value(DataRegister::R6, tag_no_case("R6")),
+        value(DataRegister::R7, tag_no_case("R7")),
+    ))(input)
 }
 
 fn parse_address_expression(input: &str) -> IResult<&str, AddressExpression> {
@@ -530,6 +613,23 @@ mod test {
         ];
         for (input, exp_output) in tests {
             let output = parse_branch_location_arg(input).unwrap();
+            assert_eq!(output, exp_output);
+        }
+    }
+
+    #[test]
+    fn parse_data_register_arg_succ() {
+        let tests = [
+            ("$R1", DataRegister::R1),
+            ("$R2", DataRegister::R2),
+            ("$R3", DataRegister::R3),
+            ("$R4", DataRegister::R4),
+            ("$r5", DataRegister::R5),
+            ("$r6", DataRegister::R6),
+            ("$r7", DataRegister::R7),
+        ];
+        for (input, exp_output) in tests {
+            let output = parse_data_register_arg(input).unwrap();
             assert_eq!(output, exp_output);
         }
     }

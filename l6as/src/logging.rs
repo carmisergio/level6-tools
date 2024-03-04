@@ -104,12 +104,13 @@ pub enum AssemblerErrorKind {
     InvalidAddress(String),
     UnexpectedCharactersAtEndOfArgument(String),
     InvalidBranchLocation(String),
+    InvalidDataRegister(String),
 
     // Code Generation
-    AddressOutOfRange(u64),
-    LongDisplacementOutOfRange(i128),
-    ShortDisplacementOutOfRange(i128),
-    ShortDisplacementMustNotBe0Or1,
+    BranchAddressOutOfRange(u64),
+    BranchLongDisplacementOutOfRange(i128),
+    BranchShortDisplacementOutOfRange(i128),
+    BranchShortDisplacementMustNotBe0Or1,
     WordDisplacementOutOfRange(i128),
     UndefinedLabel(String),
 }
@@ -144,19 +145,22 @@ impl AssemblerError {
             AssemblerErrorKind::InvalidBranchLocation(arg) => {
                 format!("invalid branch location: \"{}\"", arg)
             }
+            AssemblerErrorKind::InvalidDataRegister(arg) => {
+                format!("invalid data register: \"{}\"", arg)
+            }
             AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(arg) => {
                 format!("unexpected characters at end of argument: \"{}\"", arg)
             }
-            AssemblerErrorKind::AddressOutOfRange(addr) => {
-                format!("address out of range: {}", addr)
+            AssemblerErrorKind::BranchAddressOutOfRange(addr) => {
+                format!("address out of range: {:#x}", addr)
             }
-            AssemblerErrorKind::LongDisplacementOutOfRange(addr) => {
+            AssemblerErrorKind::BranchLongDisplacementOutOfRange(addr) => {
                 format!("long displacement out of range: {}", addr)
             }
-            AssemblerErrorKind::ShortDisplacementOutOfRange(addr) => {
+            AssemblerErrorKind::BranchShortDisplacementOutOfRange(addr) => {
                 format!("short displacement out of range: {}", addr)
             }
-            AssemblerErrorKind::ShortDisplacementMustNotBe0Or1 => {
+            AssemblerErrorKind::BranchShortDisplacementMustNotBe0Or1 => {
                 format!("short displacement must not be 0 or 1")
             }
             AssemblerErrorKind::WordDisplacementOutOfRange(addr) => {
