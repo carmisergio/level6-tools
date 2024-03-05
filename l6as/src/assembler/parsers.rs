@@ -390,7 +390,7 @@ pub fn parse_hex_u64(input: &str) -> IResult<&str, u64> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::vec;
 
     use crate::assembler::statements::{

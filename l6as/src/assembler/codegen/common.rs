@@ -6,7 +6,10 @@ use bit_struct::*;
 
 use crate::assembler::statements::{AddressExpression, BranchLocation, Statement};
 
-use super::branch_on_indicators::codegen_branch_on_instructions;
+use super::{
+    branch_on_indicators::codegen_branch_on_indicators,
+    branch_on_registers::codegen_branch_on_registers,
+};
 
 /// Generate raw words for one statement
 pub fn codegen(
@@ -18,9 +21,11 @@ pub fn codegen(
     match statement {
         Statement::Org(_) => Ok(vec![]),
         Statement::BranchOnIndicators(op, branchloc) => {
-            codegen_branch_on_instructions(op, branchloc, cur_addr, label_table)
+            codegen_branch_on_indicators(op, branchloc, cur_addr, label_table)
         }
-        Statement::BranchOnRegisters(op, reg, branchloc) => Ok(vec![0x9999]),
+        Statement::BranchOnRegisters(op, reg, branchloc) => {
+            codegen_branch_on_registers(op, reg, branchloc, cur_addr, label_table)
+        }
     }
 }
 

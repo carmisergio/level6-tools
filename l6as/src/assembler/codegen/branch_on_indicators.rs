@@ -17,7 +17,7 @@ bit_struct! {
 }
 
 /// Generaete code for a Branch on Indicators instruction
-pub fn codegen_branch_on_instructions(
+pub fn codegen_branch_on_indicators(
     op: &BranchOnIndicatorsOpCode,
     branchloc: &BranchLocation,
     cur_addr: u64,
@@ -30,7 +30,7 @@ pub fn codegen_branch_on_instructions(
     // Build instruction word
     let inst_word = BranchOnIndicatorsInstructionWord::new(
         u4!(0b0000),
-        get_branch_on_instructions_op_value(op),
+        get_branch_on_indicators_op_value(op),
         branchloc_field,
     );
 
@@ -40,7 +40,7 @@ pub fn codegen_branch_on_instructions(
 
     Ok(result)
 }
-fn get_branch_on_instructions_op_value(op: &BranchOnIndicatorsOpCode) -> u5 {
+fn get_branch_on_indicators_op_value(op: &BranchOnIndicatorsOpCode) -> u5 {
     match op {
         BranchOnIndicatorsOpCode::BL => u5!(0b00100),
         BranchOnIndicatorsOpCode::BGE => u5!(0b00101),
@@ -273,7 +273,7 @@ mod tests {
 
         for ((op, branchloc, cur_addr), exp) in tests {
             assert_eq!(
-                codegen_branch_on_instructions(&op, &branchloc, cur_addr, &label_table).unwrap(),
+                codegen_branch_on_indicators(&op, &branchloc, cur_addr, &label_table).unwrap(),
                 exp
             );
         }
