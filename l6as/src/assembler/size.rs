@@ -7,6 +7,7 @@ pub fn statement_size(statement: &Statement, _cur_addr: u64) -> u64 {
         Statement::Org(_) => 0,
         Statement::BranchOnIndicators(_op, branchloc) => branch_inst_size(branchloc),
         Statement::BranchOnRegisters(_op, _reg, branchloc) => branch_inst_size(branchloc),
+        Statement::ShortValueImmediate(_op, _reg, _value) => 1,
     }
 }
 

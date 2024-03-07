@@ -1,6 +1,6 @@
 use super::statements::{
     AddressExpression, BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode,
-    DataRegister, Mnemonic, Statement,
+    DataRegister, Mnemonic, ShortValueImmediateOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -104,18 +104,19 @@ fn encapsulate_statement(
     args: &[&str],
 ) -> Result<Statement, AssemblerErrorKind> {
     // Match mnemonic to list of mnemonics
-    let mnemonic = match match_mnemonic(&mnemonic_str.to_uppercase()) {
+    let mnemo = match match_mnemonic(&mnemonic_str.to_uppercase()) {
         Ok(mnemonic) => mnemonic,
         Err(()) => return Err(AssemblerErrorKind::UnkownMnemonic(mnemonic_str.to_owned())),
     };
 
-    match mnemonic.get_kind() {
+    match mnemo.get_kind() {
         StatementKind::Org => encapsulate_org_statement(args),
         StatementKind::BranchOnIndicators => {
-            encapsulate_branch_on_indicators_statement(mnemonic, args)
+            encapsulate_branch_on_indicators_statement(mnemo, args)
         }
-        StatementKind::BranchOnRegisters => {
-            encapsulate_branch_on_registers_statement(mnemonic, args)
+        StatementKind::BranchOnRegisters => encapsulate_branch_on_registers_statement(mnemo, args),
+        StatementKind::ShortValueImmediate => {
+            encapsulate_short_value_immediate_statement(mnemo, args)
         }
     }
 }
@@ -160,6 +161,12 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
         "BEVN" => Ok(Mnemonic::BEVN),
         "BINC" => Ok(Mnemonic::BINC),
         "BDEC" => Ok(Mnemonic::BDEC),
+
+        // Short Value Immediate instructions
+        "LDV" => Ok(Mnemonic::LDV),
+        "CMV" => Ok(Mnemonic::CMV),
+        "ADV" => Ok(Mnemonic::ADV),
+        "MLV" => Ok(Mnemonic::MLV),
         _ => Err(()),
     }
 }
@@ -262,6 +269,37 @@ fn encapsulate_branch_on_registers_statement(
     Ok(Statement::BranchOnRegisters(op, reg, branchloc))
 }
 
+fn encapsulate_short_value_immediate_statement(
+    mnemo: Mnemonic,
+    args: &[&str],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match mnemo {
+        Mnemonic::LDV => ShortValueImmediateOpCode::LDV,
+        Mnemonic::CMV => ShortValueImmediateOpCode::CMV,
+        Mnemonic::ADV => ShortValueImmediateOpCode::ADV,
+        Mnemonic::MLV => ShortValueImmediateOpCode::MLV,
+        _ => panic!("invalid OpCode for ShortValueImmediate"),
+    };
+
+    // Parse data register
+    let reg = parse_data_register_arg(args[0])?;
+
+    // Parse branch location
+    let val = parse_immediate_value_arg(&args[1])?;
+
+    Ok(Statement::ShortValueImmediate(op, reg, val))
+}
+
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {
     // Parse address
     let (input, address) = match parse_hex_u64(input) {
@@ -336,6 +374,23 @@ fn parse_data_register_arg(input: &str) -> Result<DataRegister, AssemblerErrorKi
     Ok(branchloc)
 }
 
+fn parse_immediate_value_arg(input: &str) -> Result<i128, AssemblerErrorKind> {
+    // Parse address
+    let (input, value) = match parse_immediate_value(input) {
+        Ok(address) => address,
+        Err(_) => return Err(AssemblerErrorKind::InvalidImmediateValue(input.to_owned())),
+    };
+
+    // Check for extra characters
+    if input.len() > 0 {
+        return Err(AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(
+            input.to_owned(),
+        ));
+    }
+
+    Ok(value)
+}
+
 fn parse_data_register(input: &str) -> IResult<&str, DataRegister> {
     alt((
         value(DataRegister::R1, tag_no_case("R1")),
@@ -382,11 +437,30 @@ fn parse_displacement_address_expression(input: &str) -> IResult<&str, AddressEx
     ))
 }
 
+fn parse_immediate_value(input: &str) -> IResult<&str, i128> {
+    preceded(tag("="), parse_immediate_value_contents)(input)
+}
+
+fn parse_immediate_value_contents(input: &str) -> IResult<&str, i128> {
+    alt((map(parse_hex_u64, |val| val as i128), parse_dec_i128))(input)
+}
+
 pub fn parse_hex_u64(input: &str) -> IResult<&str, u64> {
     preceded(
         tag_no_case("0x"),
         map_res(hex_digit1, |digits| u64::from_str_radix(digits, 16)),
     )(input)
+}
+
+pub fn parse_dec_i128(input: &str) -> IResult<&str, i128> {
+    alt((
+        map(preceded(opt(tag("+")), parse_dec_u64), |val| val as i128),
+        map(preceded(tag("-"), parse_dec_u64), |val| -(val as i128)),
+    ))(input)
+}
+
+pub fn parse_dec_u64(input: &str) -> IResult<&str, u64> {
+    map_res(digit1, |val| u64::from_str_radix(val, 10))(input)
 }
 
 #[cfg(test)]
@@ -631,6 +705,66 @@ mod tests {
         for (input, exp_output) in tests {
             let output = parse_data_register_arg(input).unwrap();
             assert_eq!(output, exp_output);
+        }
+    }
+
+    #[test]
+    fn parse_data_register_arg_err() {
+        let tests = ["notaregister", "", "$R1 ciao"];
+        for input in tests {
+            parse_data_register_arg(input).unwrap_err();
+        }
+    }
+
+    #[test]
+    fn parse_immediate_value_arg_err() {
+        let tests = ["notimmediate", "", "=123 ciao"];
+        for input in tests {
+            parse_immediate_value_arg(input).unwrap_err();
+        }
+    }
+
+    #[test]
+    fn parse_immediate_value_succ() {
+        let tests = [("=10", "", 10), ("=0x1234notnumber", "notnumber", 0x1234)];
+        for (input, exp_rem, exp_output) in tests {
+            let (input, output) = parse_immediate_value(input).unwrap();
+            assert_eq!(output, exp_output);
+            assert_eq!(input, exp_rem);
+        }
+    }
+
+    #[test]
+    fn parse_immediate_value_err() {
+        let tests = ["1234", "0x123"];
+        for input in tests {
+            parse_immediate_value(input).unwrap_err();
+        }
+    }
+
+    #[test]
+    fn parse_immediate_value_contents_succ() {
+        let tests = [
+            ("1", "", 1),
+            ("-1", "", -1),
+            ("+9999", "", 9999),
+            ("0x100", "", 256),
+            ("1234ciao", "ciao", 1234),
+            ("-1234  ", "  ", -1234),
+            ("0x00000000000,test", ",test", 0),
+        ];
+        for (input, exp_rem, exp_output) in tests {
+            let (input, output) = parse_immediate_value_contents(input).unwrap();
+            assert_eq!(output, exp_output);
+            assert_eq!(input, exp_rem);
+        }
+    }
+
+    #[test]
+    fn parse_immediate_value_contents_err() {
+        let tests = ["notimmediate", ""];
+        for input in tests {
+            parse_immediate_value_contents(input).unwrap_err();
         }
     }
 }

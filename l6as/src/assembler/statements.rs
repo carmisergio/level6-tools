@@ -1,5 +1,4 @@
 use core::fmt;
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mnemonic {
     // Assembler directives
@@ -39,6 +38,12 @@ pub enum Mnemonic {
     BEVN,
     BINC,
     BDEC,
+
+    // Short Value Immediate instructions
+    LDV,
+    CMV,
+    ADV,
+    MLV,
 }
 
 impl Mnemonic {
@@ -82,6 +87,12 @@ impl Mnemonic {
             Self::BEVN => StatementKind::BranchOnRegisters,
             Self::BINC => StatementKind::BranchOnRegisters,
             Self::BDEC => StatementKind::BranchOnRegisters,
+
+            // Short Value Immediate instructions
+            Self::LDV => StatementKind::ShortValueImmediate,
+            Self::CMV => StatementKind::ShortValueImmediate,
+            Self::ADV => StatementKind::ShortValueImmediate,
+            Self::MLV => StatementKind::ShortValueImmediate,
         }
     }
 }
@@ -125,6 +136,12 @@ impl Mnemonic {
             Self::BEVN => "BEVN",
             Self::BINC => "BINC",
             Self::BDEC => "BDEC",
+
+            // Short Value Immediate instructions
+            Self::LDV => "LDV",
+            Self::CMV => "CMV",
+            Self::ADV => "ADV",
+            Self::MLV => "MLV",
         }
     }
 }
@@ -140,6 +157,7 @@ pub enum StatementKind {
     Org,
     BranchOnIndicators,
     BranchOnRegisters,
+    ShortValueImmediate,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -147,6 +165,7 @@ pub enum Statement {
     Org(u64),
     BranchOnIndicators(BranchOnIndicatorsOpCode, BranchLocation),
     BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
+    ShortValueImmediate(ShortValueImmediateOpCode, DataRegister, i128),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -176,13 +195,6 @@ pub enum BranchOnIndicatorsOpCode {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BranchOnRegisters {
-    op: BranchOnRegistersOpCode,
-    register: DataRegister,
-    branchloc: BranchLocation,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub enum BranchOnRegistersOpCode {
     BLZ,
     BGEZ,
@@ -194,6 +206,14 @@ pub enum BranchOnRegistersOpCode {
     BEVN,
     BINC,
     BDEC,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ShortValueImmediateOpCode {
+    LDV,
+    CMV,
+    ADV,
+    MLV,
 }
 
 #[derive(Debug, Clone, PartialEq)]

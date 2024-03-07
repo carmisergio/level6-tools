@@ -9,7 +9,7 @@ use bit_struct::*;
 
 use crate::assembler::statements::BranchLocation;
 
-use super::common::get_branch_location_field_value;
+use super::common::{get_branch_location_field_value, get_data_register_value};
 
 bit_struct! {
     pub struct BranchOnRegistersInstructionWord(u16) {
@@ -59,18 +59,6 @@ fn get_branch_on_registers_op_value(op: &BranchOnRegistersOpCode) -> u5 {
         BranchOnRegistersOpCode::BODD => u5!(0b10111),
         BranchOnRegistersOpCode::BDEC => u5!(0b01110),
         BranchOnRegistersOpCode::BINC => u5!(0b01111),
-    }
-}
-
-fn get_data_register_value(reg: &DataRegister) -> u3 {
-    match reg {
-        DataRegister::R1 => u3!(1),
-        DataRegister::R2 => u3!(2),
-        DataRegister::R3 => u3!(3),
-        DataRegister::R4 => u3!(4),
-        DataRegister::R5 => u3!(5),
-        DataRegister::R6 => u3!(6),
-        DataRegister::R7 => u3!(7),
     }
 }
 
@@ -181,23 +169,6 @@ mod tests {
                 codegen_branch_on_registers(&op, &branchloc, &reg, cur_addr, &label_table).unwrap(),
                 exp
             );
-        }
-    }
-
-    #[test]
-    fn get_data_register_value_succ() {
-        let tests = [
-            (DataRegister::R1, u3!(0b001)),
-            (DataRegister::R2, u3!(0b010)),
-            (DataRegister::R3, u3!(0b011)),
-            (DataRegister::R4, u3!(0b100)),
-            (DataRegister::R5, u3!(0b101)),
-            (DataRegister::R6, u3!(0b110)),
-            (DataRegister::R7, u3!(0b111)),
-        ];
-
-        for (input, exp) in tests {
-            assert_eq!(get_data_register_value(&input), exp);
         }
     }
 }

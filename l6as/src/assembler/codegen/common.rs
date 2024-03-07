@@ -4,11 +4,12 @@ use crate::logging::AssemblerErrorKind;
 
 use bit_struct::*;
 
-use crate::assembler::statements::{AddressExpression, BranchLocation, Statement};
+use crate::assembler::statements::{AddressExpression, BranchLocation, DataRegister, Statement};
 
 use super::{
     branch_on_indicators::codegen_branch_on_indicators,
     branch_on_registers::codegen_branch_on_registers,
+    short_value_immediate::codegen_short_value_immediate,
 };
 
 /// Generate raw words for one statement
@@ -25,6 +26,9 @@ pub fn codegen(
         }
         Statement::BranchOnRegisters(op, reg, branchloc) => {
             codegen_branch_on_registers(op, reg, branchloc, cur_addr, label_table)
+        }
+        Statement::ShortValueImmediate(op, reg, value) => {
+            codegen_short_value_immediate(op, reg, *value)
         }
     }
 }
@@ -139,6 +143,18 @@ fn resolve_address_expression(
     }
 }
 
+pub fn get_data_register_value(reg: &DataRegister) -> u3 {
+    match reg {
+        DataRegister::R1 => u3!(1),
+        DataRegister::R2 => u3!(2),
+        DataRegister::R3 => u3!(3),
+        DataRegister::R4 => u3!(4),
+        DataRegister::R5 => u3!(5),
+        DataRegister::R6 => u3!(6),
+        DataRegister::R7 => u3!(7),
+    }
+}
+
 /// Returns u16 containing a two's complement encoded relative number
 fn twos_complement_u16(input: i16) -> u16 {
     let bytes = input.to_be_bytes();
@@ -212,6 +228,23 @@ mod tests {
 
         for (input, exp) in tests {
             assert_eq!(twos_complement_u16(input), exp);
+        }
+    }
+
+    #[test]
+    fn get_data_register_value_succ() {
+        let tests = [
+            (DataRegister::R1, u3!(0b001)),
+            (DataRegister::R2, u3!(0b010)),
+            (DataRegister::R3, u3!(0b011)),
+            (DataRegister::R4, u3!(0b100)),
+            (DataRegister::R5, u3!(0b101)),
+            (DataRegister::R6, u3!(0b110)),
+            (DataRegister::R7, u3!(0b111)),
+        ];
+
+        for (input, exp) in tests {
+            assert_eq!(get_data_register_value(&input), exp);
         }
     }
 }

@@ -105,6 +105,7 @@ pub enum AssemblerErrorKind {
     UnexpectedCharactersAtEndOfArgument(String),
     InvalidBranchLocation(String),
     InvalidDataRegister(String),
+    InvalidImmediateValue(String),
 
     // Code Generation
     BranchAddressOutOfRange(u64),
@@ -112,6 +113,7 @@ pub enum AssemblerErrorKind {
     BranchShortDisplacementOutOfRange(i128),
     BranchShortDisplacementMustNotBe0Or1,
     WordDisplacementOutOfRange(i128),
+    ShortImmediateValueOutOfRange(i128),
     UndefinedLabel(String),
 }
 
@@ -148,6 +150,9 @@ impl AssemblerError {
             AssemblerErrorKind::InvalidDataRegister(arg) => {
                 format!("invalid data register: \"{}\"", arg)
             }
+            AssemblerErrorKind::InvalidImmediateValue(arg) => {
+                format!("invalid immediate value: \"{}\"", arg)
+            }
             AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(arg) => {
                 format!("unexpected characters at end of argument: \"{}\"", arg)
             }
@@ -165,6 +170,9 @@ impl AssemblerError {
             }
             AssemblerErrorKind::WordDisplacementOutOfRange(addr) => {
                 format!("word displacement out of range: {}", addr)
+            }
+            AssemblerErrorKind::ShortImmediateValueOutOfRange(val) => {
+                format!("short immediate value out of range: {}", val)
             }
             AssemblerErrorKind::UndefinedLabel(label) => {
                 format!("undefined label: \"{}\"", label)
