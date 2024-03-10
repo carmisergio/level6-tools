@@ -1,15 +1,15 @@
 use super::statements::{
     AddressExpression, BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode,
-    DataRegister, Mnemonic, ShortValueImmediateOpCode, Statement,
+    DataDefinitionSize, DataRegister, Mnemonic, ShortValueImmediateOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag, tag_no_case, take_while1},
+    bytes::complete::{is_not, tag, tag_no_case, take, take_while1},
     character::complete::{digit1, hex_digit1, space0},
     combinator::{map, map_res, opt, value},
     error::{ErrorKind, ParseError},
-    multi::separated_list0,
+    multi::{fold_many0, separated_list0},
     sequence::{delimited, preceded, terminated, tuple},
     Err, IResult,
 };
@@ -111,6 +111,7 @@ fn encapsulate_statement(
 
     match mnemo.get_kind() {
         StatementKind::Org => encapsulate_org_statement(args),
+        StatementKind::DataDefinition => encapsulate_data_definition_statement(mnemo, args),
         StatementKind::BranchOnIndicators => {
             encapsulate_branch_on_indicators_statement(mnemo, args)
         }
@@ -126,6 +127,10 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
     match input {
         // Assembler directives
         ".ORG" => Ok(Mnemonic::DotORG),
+        ".DB" => Ok(Mnemonic::DotDB),
+        ".DW" => Ok(Mnemonic::DotDW),
+        ".DD" => Ok(Mnemonic::DotDD),
+        ".DQ" => Ok(Mnemonic::DotDQ),
 
         // Branch on Indicators instructions
         "BL" => Ok(Mnemonic::BL),
@@ -300,6 +305,37 @@ fn encapsulate_short_value_immediate_statement(
     Ok(Statement::ShortValueImmediate(op, reg, val))
 }
 
+fn encapsulate_data_definition_statement(
+    mnemo: Mnemonic,
+    args: &[&str],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() == 0 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            0,
+            args.len(),
+        ));
+    }
+
+    // Get data size
+    let size = match mnemo {
+        Mnemonic::DotDB => DataDefinitionSize::Byte,
+        Mnemonic::DotDW => DataDefinitionSize::Word,
+        Mnemonic::DotDD => DataDefinitionSize::DoubleWord,
+        Mnemonic::DotDQ => DataDefinitionSize::QuadWord,
+        _ => panic!("invalid mnemonic for DataDefinition"),
+    };
+
+    // Parse definition chunks
+    let mut values: Vec<i128> = vec![];
+    for arg in args {
+        values.append(&mut parse_definition_chunk_arg(&arg)?)
+    }
+
+    Ok(Statement::DataDefinition(size, values))
+}
+
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {
     // Parse address
     let (input, address) = match parse_hex_u64(input) {
@@ -391,6 +427,31 @@ fn parse_immediate_value_arg(input: &str) -> Result<i128, AssemblerErrorKind> {
     Ok(value)
 }
 
+fn parse_definition_chunk_arg(input: &str) -> Result<Vec<i128>, AssemblerErrorKind> {
+    // Parse address
+    let (input, value) = match alt((
+        map(parse_immediate_value_contents, |imm| vec![imm]),
+        parse_string_to_i128s,
+    ))(input)
+    {
+        Ok(address) => address,
+        Err(_) => {
+            return Err(AssemblerErrorKind::InvalidDataDefinitionChunk(
+                input.to_owned(),
+            ))
+        }
+    };
+
+    // Check for extra characters
+    if input.len() > 0 {
+        return Err(AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(
+            input.to_owned(),
+        ));
+    }
+
+    Ok(value)
+}
+
 fn parse_data_register(input: &str) -> IResult<&str, DataRegister> {
     alt((
         value(DataRegister::R1, tag_no_case("R1")),
@@ -461,6 +522,56 @@ pub fn parse_dec_i128(input: &str) -> IResult<&str, i128> {
 
 pub fn parse_dec_u64(input: &str) -> IResult<&str, u64> {
     map_res(digit1, |val| u64::from_str_radix(val, 10))(input)
+}
+
+pub fn parse_string_to_i128s(input: &str) -> IResult<&str, Vec<i128>> {
+    map(parse_escaped_string, |string| {
+        string.chars().map(|ch| ch as i128).collect()
+    })(input)
+}
+
+pub fn parse_escaped_string(input: &str) -> IResult<&str, String> {
+    delimited(tag("\""), parse_escaped_string_contents, tag("\""))(input)
+}
+
+pub fn parse_escaped_string_contents(input: &str) -> IResult<&str, String> {
+    fold_many0(
+        alt((
+            map(is_not("\\\""), |st: &str| st.to_owned()),
+            parse_escaped_block,
+        )),
+        String::new,
+        |mut acc, new| {
+            acc.push_str(&new);
+            acc
+        },
+    )(input)
+}
+
+pub fn parse_escaped_block(input: &str) -> IResult<&str, String> {
+    map(
+        preceded(
+            tag("\\"),
+            map(take(1usize), |escaped: &str| {
+                if let Some(escaped) = escaped.chars().nth(0) {
+                    match escaped {
+                        'n' => '\n',
+                        'r' => '\r',
+                        't' => '\t',
+                        '0' => '\0',
+                        _ => escaped,
+                    }
+                } else {
+                    panic!("No escaped character!");
+                }
+            }),
+        ),
+        |ch: char| {
+            let mut string = String::new();
+            string.push(ch);
+            string
+        },
+    )(input)
 }
 
 #[cfg(test)]
@@ -765,6 +876,69 @@ mod tests {
         let tests = ["notimmediate", ""];
         for input in tests {
             parse_immediate_value_contents(input).unwrap_err();
+        }
+    }
+
+    #[test]
+    fn parse_string_to_i128s_succ() {
+        let tests = [
+            (
+                "\"test\"",
+                "",
+                vec!['t' as i128, 'e' as i128, 's' as i128, 't' as i128],
+            ),
+            (
+                "\"\\0 hello\n\"",
+                "",
+                vec![
+                    '\0' as i128,
+                    ' ' as i128,
+                    'h' as i128,
+                    'e' as i128,
+                    'l' as i128,
+                    'l' as i128,
+                    'o' as i128,
+                    '\n' as i128,
+                ],
+            ),
+            (
+                "\"\\0\\n\\r\\t\\\\\\i\"",
+                "",
+                vec![
+                    '\0' as i128,
+                    '\n' as i128,
+                    '\r' as i128,
+                    '\t' as i128,
+                    '\\' as i128,
+                    'i' as i128,
+                ],
+            ),
+        ];
+        for (input, exp_rem, exp_output) in tests {
+            let (input, output) = parse_string_to_i128s(input).unwrap();
+            assert_eq!(output, exp_output);
+            assert_eq!(input, exp_rem);
+        }
+    }
+
+    #[test]
+    fn parse_string_to_i128s_err() {
+        let tests = ["nostring", "", "ciao\\"];
+        for input in tests {
+            parse_string_to_i128s(input).unwrap_err();
+        }
+    }
+
+    #[test]
+    fn parse_definition_chunk_arg_succ() {
+        let tests = [
+            ("100", vec![100i128]),
+            ("0x10", vec![16i128]),
+            ("\"abc\"", vec!['a' as i128, 'b' as i128, 'c' as i128]),
+        ];
+        for (input, exp_output) in tests {
+            let output = parse_definition_chunk_arg(input).unwrap();
+            assert_eq!(output, exp_output);
         }
     }
 }

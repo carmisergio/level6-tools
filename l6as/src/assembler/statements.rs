@@ -3,6 +3,10 @@ use core::fmt;
 pub enum Mnemonic {
     // Assembler directives
     DotORG,
+    DotDB,
+    DotDW,
+    DotDD,
+    DotDQ,
 
     // Branch on Registers instructions
     BL,
@@ -52,6 +56,10 @@ impl Mnemonic {
         match *self {
             // Assembler directives
             Self::DotORG => StatementKind::Org,
+            Self::DotDB => StatementKind::DataDefinition,
+            Self::DotDW => StatementKind::DataDefinition,
+            Self::DotDD => StatementKind::DataDefinition,
+            Self::DotDQ => StatementKind::DataDefinition,
 
             // Branch on Indicators instructions
             Self::BL => StatementKind::BranchOnIndicators,
@@ -102,6 +110,10 @@ impl Mnemonic {
         match *self {
             // Assembler directives
             Self::DotORG => ".ORG",
+            Self::DotDB => ".DB",
+            Self::DotDW => ".DW",
+            Self::DotDD => ".DD",
+            Self::DotDQ => ".DQ",
 
             // Branch on Indicators instructions
             Self::BL => "BL",
@@ -155,6 +167,7 @@ impl fmt::Display for Mnemonic {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatementKind {
     Org,
+    DataDefinition,
     BranchOnIndicators,
     BranchOnRegisters,
     ShortValueImmediate,
@@ -163,9 +176,18 @@ pub enum StatementKind {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Org(u64),
+    DataDefinition(DataDefinitionSize, Vec<i128>),
     BranchOnIndicators(BranchOnIndicatorsOpCode, BranchLocation),
     BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
     ShortValueImmediate(ShortValueImmediateOpCode, DataRegister, i128),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataDefinitionSize {
+    Byte,
+    Word,
+    DoubleWord,
+    QuadWord,
 }
 
 #[derive(Debug, Clone, PartialEq)]

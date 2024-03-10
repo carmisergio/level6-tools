@@ -8,7 +8,7 @@ use crate::assembler::statements::{AddressExpression, BranchLocation, DataRegist
 
 use super::{
     branch_on_indicators::codegen_branch_on_indicators,
-    branch_on_registers::codegen_branch_on_registers,
+    branch_on_registers::codegen_branch_on_registers, data_definition::codegen_data_definition,
     short_value_immediate::codegen_short_value_immediate,
 };
 
@@ -21,6 +21,7 @@ pub fn codegen(
     // Compute different size depending on the kind of statement
     match statement {
         Statement::Org(_) => Ok(vec![]),
+        Statement::DataDefinition(size, values) => codegen_data_definition(size, values),
         Statement::BranchOnIndicators(op, branchloc) => {
             codegen_branch_on_indicators(op, branchloc, cur_addr, label_table)
         }

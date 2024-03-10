@@ -106,6 +106,7 @@ pub enum AssemblerErrorKind {
     InvalidBranchLocation(String),
     InvalidDataRegister(String),
     InvalidImmediateValue(String),
+    InvalidDataDefinitionChunk(String),
 
     // Code Generation
     BranchAddressOutOfRange(u64),
@@ -115,6 +116,7 @@ pub enum AssemblerErrorKind {
     WordDisplacementOutOfRange(i128),
     ShortImmediateValueOutOfRange(i128),
     UndefinedLabel(String),
+    DataDefinitionValueOutOfRange(i128),
 }
 
 #[derive(Debug)]
@@ -153,6 +155,9 @@ impl AssemblerError {
             AssemblerErrorKind::InvalidImmediateValue(arg) => {
                 format!("invalid immediate value: \"{}\"", arg)
             }
+            AssemblerErrorKind::InvalidDataDefinitionChunk(arg) => {
+                format!("invalid definition chunk: \"{}\"", arg)
+            }
             AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(arg) => {
                 format!("unexpected characters at end of argument: \"{}\"", arg)
             }
@@ -176,6 +181,9 @@ impl AssemblerError {
             }
             AssemblerErrorKind::UndefinedLabel(label) => {
                 format!("undefined label: \"{}\"", label)
+            }
+            AssemblerErrorKind::DataDefinitionValueOutOfRange(val) => {
+                format!("data definition value out of range: {}", val)
             }
         }
     }
