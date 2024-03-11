@@ -174,18 +174,6 @@ fn parse_string_literal(input: &str) -> IResult<&str, &str> {
         },
     )(input)
 }
-// fn parse_string_literal(input: &str) -> IResult<&str, &str> {
-//     let (input, res) = delimited(tag("\""), opt(is_not("\"")), tag("\""))(input)?;
-
-//     // Handle empty strings
-//     Ok((
-//         input,
-//         match res {
-//             Some(string) => string,
-//             None => "",
-//         },
-//     ))
-// }
 
 fn parse_string_literal_block(input: &str) -> IResult<&str, String> {
     let (input, (_, cont, _)) = tuple((

@@ -9,7 +9,7 @@ use nom::{
     character::complete::{digit1, hex_digit1, space0},
     combinator::{map, map_res, opt, value},
     error::{ErrorKind, ParseError},
-    multi::{fold_many0, separated_list0},
+    multi::{fold_many0, fold_many1, separated_list0},
     sequence::{delimited, preceded, terminated, tuple},
     Err, IResult,
 };
@@ -77,7 +77,7 @@ pub fn parse_statement(input: &str) -> IResult<&str, Statement, AssemblerParseEr
     Ok(("", statement))
 }
 
-fn parse_mnemonic_and_args(input: &str) -> IResult<&str, (&str, Vec<&str>), AssemblerParseError> {
+fn parse_mnemonic_and_args(input: &str) -> IResult<&str, (&str, Vec<String>), AssemblerParseError> {
     // Store intermediary result for type annotations
     let mnemo_res: IResult<&str, &str> = is_not(" ,")(input);
 
@@ -94,14 +94,36 @@ fn parse_mnemonic_and_args(input: &str) -> IResult<&str, (&str, Vec<&str>), Asse
 
     // Get arguments
     let (input, arguments) =
-        separated_list0(tag(","), delimited(space0, is_not(","), space0))(input)?;
+        match separated_list0(tag(","), delimited(space0, parse_arg_block, space0))(input) {
+            Ok(res) => res,
+            Err(_) => {
+                return Err(Err::Failure(AssemblerParseError {
+                    _input: input,
+                    kind: AssemblerErrorKind::MalformedArgumentList,
+                }))
+            }
+        };
 
     Ok((input, (mnemonic, arguments)))
 }
 
+fn parse_arg_block(input: &str) -> IResult<&str, String> {
+    fold_many1(
+        alt((
+            parse_string_literal_block,
+            map(is_not(","), |res: &str| res.to_owned()),
+        )),
+        String::new,
+        |mut acc, block| {
+            acc.push_str(&block);
+            acc
+        },
+    )(input)
+}
+
 fn encapsulate_statement(
     mnemonic_str: &str,
-    args: &[&str],
+    args: &[String],
 ) -> Result<Statement, AssemblerErrorKind> {
     // Match mnemonic to list of mnemonics
     let mnemo = match match_mnemonic(&mnemonic_str.to_uppercase()) {
@@ -176,7 +198,7 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
     }
 }
 
-fn encapsulate_org_statement(args: &[&str]) -> Result<Statement, AssemblerErrorKind> {
+fn encapsulate_org_statement(args: &[String]) -> Result<Statement, AssemblerErrorKind> {
     // Check number of arguments
     if args.len() != 1 {
         return Err(AssemblerErrorKind::WrongNumberOfArguments(
@@ -194,7 +216,7 @@ fn encapsulate_org_statement(args: &[&str]) -> Result<Statement, AssemblerErrorK
 
 fn encapsulate_branch_on_indicators_statement(
     mnemo: Mnemonic,
-    args: &[&str],
+    args: &[String],
 ) -> Result<Statement, AssemblerErrorKind> {
     // Check number of arguments
     if args.len() != 1 {
@@ -239,7 +261,7 @@ fn encapsulate_branch_on_indicators_statement(
 
 fn encapsulate_branch_on_registers_statement(
     mnemo: Mnemonic,
-    args: &[&str],
+    args: &[String],
 ) -> Result<Statement, AssemblerErrorKind> {
     // Check number of arguments
     if args.len() != 2 {
@@ -266,7 +288,7 @@ fn encapsulate_branch_on_registers_statement(
     };
 
     // Parse data register
-    let reg = parse_data_register_arg(args[0])?;
+    let reg = parse_data_register_arg(&args[0])?;
 
     // Parse branch location
     let branchloc = parse_branch_location_arg(&args[1])?;
@@ -276,7 +298,7 @@ fn encapsulate_branch_on_registers_statement(
 
 fn encapsulate_short_value_immediate_statement(
     mnemo: Mnemonic,
-    args: &[&str],
+    args: &[String],
 ) -> Result<Statement, AssemblerErrorKind> {
     // Check number of arguments
     if args.len() != 2 {
@@ -297,7 +319,7 @@ fn encapsulate_short_value_immediate_statement(
     };
 
     // Parse data register
-    let reg = parse_data_register_arg(args[0])?;
+    let reg = parse_data_register_arg(&args[0])?;
 
     // Parse branch location
     let val = parse_immediate_value_arg(&args[1])?;
@@ -307,7 +329,7 @@ fn encapsulate_short_value_immediate_statement(
 
 fn encapsulate_data_definition_statement(
     mnemo: Mnemonic,
-    args: &[&str],
+    args: &[String],
 ) -> Result<Statement, AssemblerErrorKind> {
     // Check number of arguments
     if args.len() == 0 {
@@ -574,6 +596,32 @@ pub fn parse_escaped_block(input: &str) -> IResult<&str, String> {
     )(input)
 }
 
+fn parse_string_literal_block(input: &str) -> IResult<&str, String> {
+    let (input, (_, cont, _)) = tuple((
+        tag("\""),
+        fold_many0(
+            alt((
+                map(is_not("\"\\"), |val: &str| val.to_owned()),
+                parse_string_escaped_block,
+            )),
+            String::new,
+            |mut acc: String, item| {
+                acc.push_str(&item);
+                acc
+            },
+        ),
+        tag("\""),
+    ))(input)?;
+
+    Ok((input, format!("\"{}\"", cont)))
+}
+
+fn parse_string_escaped_block(input: &str) -> IResult<&str, String> {
+    let (input, (escaper, escaped)) = tuple((tag("\\"), take(1 as usize)))(input)?;
+    // let (input, (escaper, escaped)) = tuple((tag( as usize), take(1 as usize)))(input)?;
+    Ok((input, escaper.to_owned() + escaped))
+}
+
 #[cfg(test)]
 mod tests {
     use std::vec;
@@ -650,10 +698,14 @@ mod tests {
         let tests = [
             (
                 "mnemo arg1, arg2, arg3",
-                ("mnemo", vec!["arg1", "arg2", "arg3"]),
+                (
+                    "mnemo",
+                    vec!["arg1".to_owned(), "arg2".to_owned(), "arg3".to_owned()],
+                ),
                 "",
             ),
             (".ORG", (".ORG", vec![]), ""),
+            (".DB \"a,b\"", (".DB", vec!["\"a,b\"".to_owned()]), ""),
             // (".org 0x0", Statement::Org(0x0), ""),
         ];
         for (input, exp_output, exp_remaining) in tests {

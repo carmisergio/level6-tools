@@ -100,6 +100,7 @@ pub enum AssemblerErrorKind {
     UnkownMnemonic(String),
 
     // Argument parsing
+    MalformedArgumentList,
     WrongNumberOfArguments(Mnemonic, usize, usize),
     InvalidAddress(String),
     UnexpectedCharactersAtEndOfArgument(String),
@@ -140,6 +141,9 @@ impl AssemblerError {
             AssemblerErrorKind::UnkownMnemonic(mnemo) => {
                 format!("unkown mnemonic: \"{}\"", mnemo)
             }
+            AssemblerErrorKind::MalformedArgumentList => {
+                format!("malformed argument list")
+            }
             AssemblerErrorKind::WrongNumberOfArguments(mnemonic, expected, got) => {
                 format!("{} takes {} arguments, got {}", mnemonic, expected, got)
             }
@@ -162,7 +166,7 @@ impl AssemblerError {
                 format!("unexpected characters at end of argument: \"{}\"", arg)
             }
             AssemblerErrorKind::BranchAddressOutOfRange(addr) => {
-                format!("address out of range: {:#x}", addr)
+                format!("address out of range: {:#X}", addr)
             }
             AssemblerErrorKind::BranchLongDisplacementOutOfRange(addr) => {
                 format!("long displacement out of range: {}", addr)
@@ -177,13 +181,13 @@ impl AssemblerError {
                 format!("word displacement out of range: {}", addr)
             }
             AssemblerErrorKind::ShortImmediateValueOutOfRange(val) => {
-                format!("short immediate value out of range: {}", val)
+                format!("short immediate value out of range: ({:#X}) {}", val, val)
             }
             AssemblerErrorKind::UndefinedLabel(label) => {
                 format!("undefined label: \"{}\"", label)
             }
             AssemblerErrorKind::DataDefinitionValueOutOfRange(val) => {
-                format!("data definition value out of range: {}", val)
+                format!("data definition value out of range: ({:#X}) {}", val, val)
             }
         }
     }
