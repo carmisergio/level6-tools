@@ -108,6 +108,7 @@ pub enum AssemblerErrorKind {
     InvalidDataRegister(String),
     InvalidImmediateValue(String),
     InvalidDataDefinitionChunk(String),
+    InvalidAddressSyllable(String),
 
     // Code Generation
     BranchAddressOutOfRange(u64),
@@ -161,6 +162,9 @@ impl AssemblerError {
             }
             AssemblerErrorKind::InvalidDataDefinitionChunk(arg) => {
                 format!("invalid definition chunk: \"{}\"", arg)
+            }
+            AssemblerErrorKind::InvalidAddressSyllable(arg) => {
+                format!("invalid address syllable: \"{}\"", arg)
             }
             AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(arg) => {
                 format!("unexpected characters at end of argument: \"{}\"", arg)

@@ -239,6 +239,18 @@ pub enum ShortValueImmediateOpCode {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum SingleOperandInstructionOpCode {
+    INC,
+    DEC,
+    NEG,
+    CPL,
+    CL,
+    CLH,
+    CMZ,
+    // CMN, // I don't know because it's a base thing
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum BranchLocation {
     Absolute(AddressExpression),
     LongDisplacement(AddressExpression),
@@ -253,6 +265,21 @@ pub enum AddressExpression {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum AddressSyllable {
+    RegisterAddressing(Register),
+    ImmediateAddressing(ImmediateAddressMode),
+    ImmediateOperand(i128),
+    PRelative(PRelativeAddress),
+    BRelative(BRelativeAddressMode),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Register {
+    Data(DataRegister),
+    Base(BaseRegister),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum DataRegister {
     R1,
     R2,
@@ -261,4 +288,46 @@ pub enum DataRegister {
     R5,
     R6,
     R7,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BaseRegister {
+    B1,
+    B2,
+    B3,
+    B4,
+    B5,
+    B6,
+    B7,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ImmediateAddressMode {
+    Direct(ImmediateAddress),
+    Indirect(ImmediateAddress),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ImmediateAddress {
+    Simple(AddressExpression),
+    Indexed(AddressExpression, DataRegister),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PRelativeAddress {
+    Direct(AddressExpression),
+    Indirect(AddressExpression),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BRelativeAddressMode {
+    Direct(BRelativeAddress),
+    Indirect(BRelativeAddress),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BRelativeAddress {
+    Simple(BaseRegister),
+    Indexed(BaseRegister, DataRegister),
+    Displacement(BaseRegister, i128),
 }

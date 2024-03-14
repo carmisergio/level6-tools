@@ -1,6 +1,9 @@
+use std::ops::Add;
+
 use super::statements::{
-    AddressExpression, BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode,
-    DataDefinitionSize, DataRegister, Mnemonic, ShortValueImmediateOpCode, Statement,
+    AddressExpression, AddressSyllable, BaseRegister, BranchLocation, BranchOnIndicatorsOpCode,
+    BranchOnRegistersOpCode, DataDefinitionSize, DataRegister, Mnemonic, Register,
+    ShortValueImmediateOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -449,6 +452,7 @@ fn parse_immediate_value_arg(input: &str) -> Result<i128, AssemblerErrorKind> {
     Ok(value)
 }
 
+// Chunk of a Data Definition statement
 fn parse_definition_chunk_arg(input: &str) -> Result<Vec<i128>, AssemblerErrorKind> {
     // Parse address
     let (input, value) = match alt((
@@ -474,6 +478,44 @@ fn parse_definition_chunk_arg(input: &str) -> Result<Vec<i128>, AssemblerErrorKi
     Ok(value)
 }
 
+// Address syllable
+fn parse_address_syllable_arg(input: &str) -> Result<AddressSyllable, AssemblerErrorKind> {
+    // Parse address
+    let (input, value) = match alt((
+        parse_address_syllable_register_addressing,
+        parse_address_syllable_register_addressing, // Double to keep the alt
+    ))(input)
+    {
+        Ok(address) => address,
+        Err(_) => return Err(AssemblerErrorKind::InvalidAddressSyllable(input.to_owned())),
+    };
+
+    // Check for extra characters
+    if input.len() > 0 {
+        return Err(AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(
+            input.to_owned(),
+        ));
+    }
+
+    Ok(value)
+}
+
+fn parse_address_syllable_register_addressing(input: &str) -> IResult<&str, AddressSyllable> {
+    map(preceded(tag("="), parse_generic_register), |reg| {
+        AddressSyllable::RegisterAddressing(reg)
+    })(input)
+}
+
+fn parse_generic_register(input: &str) -> IResult<&str, Register> {
+    preceded(
+        tag("$"),
+        alt((
+            map(parse_data_register, |reg| Register::Data(reg)),
+            map(parse_base_register, |reg| Register::Base(reg)),
+        )),
+    )(input)
+}
+
 fn parse_data_register(input: &str) -> IResult<&str, DataRegister> {
     alt((
         value(DataRegister::R1, tag_no_case("R1")),
@@ -483,6 +525,18 @@ fn parse_data_register(input: &str) -> IResult<&str, DataRegister> {
         value(DataRegister::R5, tag_no_case("R5")),
         value(DataRegister::R6, tag_no_case("R6")),
         value(DataRegister::R7, tag_no_case("R7")),
+    ))(input)
+}
+
+fn parse_base_register(input: &str) -> IResult<&str, BaseRegister> {
+    alt((
+        value(BaseRegister::B1, tag_no_case("B1")),
+        value(BaseRegister::B2, tag_no_case("B2")),
+        value(BaseRegister::B3, tag_no_case("B3")),
+        value(BaseRegister::B4, tag_no_case("B4")),
+        value(BaseRegister::B5, tag_no_case("B5")),
+        value(BaseRegister::B6, tag_no_case("B6")),
+        value(BaseRegister::B7, tag_no_case("B7")),
     ))(input)
 }
 
@@ -627,7 +681,7 @@ mod tests {
     use std::vec;
 
     use crate::assembler::statements::{
-        AddressExpression, BranchLocation, BranchOnIndicatorsOpCode,
+        AddressExpression, BaseRegister, BranchLocation, BranchOnIndicatorsOpCode,
     };
 
     use super::*;
@@ -990,6 +1044,24 @@ mod tests {
         ];
         for (input, exp_output) in tests {
             let output = parse_definition_chunk_arg(input).unwrap();
+            assert_eq!(output, exp_output);
+        }
+    }
+
+    #[test]
+    fn parse_address_expression_arg_succ() {
+        let tests = [
+            (
+                "=$R1",
+                AddressSyllable::RegisterAddressing(Register::Data(DataRegister::R1)),
+            ),
+            (
+                "=$B3",
+                AddressSyllable::RegisterAddressing(Register::Base(BaseRegister::B3)),
+            ),
+        ];
+        for (input, exp_output) in tests {
+            let output = parse_address_syllable_arg(input).unwrap();
             assert_eq!(output, exp_output);
         }
     }
