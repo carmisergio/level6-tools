@@ -1,8 +1,9 @@
 use std::ops::Add;
 
 use super::statements::{
-    AddressExpression, AddressSyllable, BaseRegister, BranchLocation, BranchOnIndicatorsOpCode,
-    BranchOnRegistersOpCode, DataDefinitionSize, DataRegister, Mnemonic, Register,
+    AddressExpression, AddressSyllable, BRelativeAddress, BRelativeAddressMode, BaseRegister,
+    BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, DataDefinitionSize,
+    DataRegister, ImmediateAddress, ImmediateAddressMode, Mnemonic, PRelativeAddress, Register,
     ShortValueImmediateOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
@@ -13,7 +14,7 @@ use nom::{
     combinator::{map, map_res, opt, value},
     error::{ErrorKind, ParseError},
     multi::{fold_many0, fold_many1, separated_list0},
-    sequence::{delimited, preceded, terminated, tuple},
+    sequence::{delimited, preceded, separated_pair, terminated, tuple},
     Err, IResult,
 };
 
@@ -483,7 +484,10 @@ fn parse_address_syllable_arg(input: &str) -> Result<AddressSyllable, AssemblerE
     // Parse address
     let (input, value) = match alt((
         parse_address_syllable_register_addressing,
-        parse_address_syllable_register_addressing, // Double to keep the alt
+        parse_address_syllable_immediate_operand,
+        parse_address_syllable_immediate_addressing,
+        parse_address_syllable_prelative_addressing,
+        parse_address_syllable_brelative_addressing,
     ))(input)
     {
         Ok(address) => address,
@@ -540,6 +544,88 @@ fn parse_base_register(input: &str) -> IResult<&str, BaseRegister> {
     ))(input)
 }
 
+fn parse_address_syllable_immediate_operand(input: &str) -> IResult<&str, AddressSyllable> {
+    map(preceded(tag("="), parse_immediate_value_contents), |reg| {
+        AddressSyllable::ImmediateOperand(reg)
+    })(input)
+}
+
+fn parse_address_syllable_immediate_addressing(input: &str) -> IResult<&str, AddressSyllable> {
+    alt((
+        map(
+            preceded(tag("*"), parse_address_syllable_immediate_address),
+            |ia| AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Indirect(ia)),
+        ),
+        map(parse_address_syllable_immediate_address, |ia| {
+            AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Direct(ia))
+        }),
+    ))(input)
+}
+
+fn parse_address_syllable_immediate_address(input: &str) -> IResult<&str, ImmediateAddress> {
+    preceded(
+        tag("<"),
+        alt((
+            map(
+                separated_pair(
+                    parse_address_expression,
+                    tag("."),
+                    preceded(tag("$"), parse_data_register),
+                ),
+                |(ae, dr)| ImmediateAddress::Indexed(ae, dr),
+            ),
+            map(parse_address_expression, |ae| ImmediateAddress::Simple(ae)),
+        )),
+    )(input)
+}
+
+fn parse_address_syllable_prelative_addressing(input: &str) -> IResult<&str, AddressSyllable> {
+    alt((
+        map(preceded(tag("*"), parse_address_expression), |ae| {
+            AddressSyllable::PRelative(PRelativeAddress::Indirect(ae))
+        }),
+        map(parse_address_expression, |ae| {
+            AddressSyllable::PRelative(PRelativeAddress::Direct(ae))
+        }),
+    ))(input)
+}
+
+fn parse_address_syllable_brelative_addressing(input: &str) -> IResult<&str, AddressSyllable> {
+    alt((
+        map(
+            preceded(tag("*"), parse_address_syllable_brelative_address),
+            |ba| AddressSyllable::BRelative(BRelativeAddressMode::Indirect(ba)),
+        ),
+        map(parse_address_syllable_brelative_address, |ba| {
+            AddressSyllable::BRelative(BRelativeAddressMode::Direct(ba))
+        }),
+    ))(input)
+}
+
+fn parse_address_syllable_brelative_address(input: &str) -> IResult<&str, BRelativeAddress> {
+    alt((
+        map(
+            separated_pair(
+                preceded(tag("$"), parse_base_register),
+                tag("."),
+                preceded(tag("$"), parse_data_register),
+            ),
+            |(br, dr)| BRelativeAddress::Indexed(br, dr),
+        ),
+        map(
+            separated_pair(
+                preceded(tag("$"), parse_base_register),
+                tag("."),
+                parse_word_displacement,
+            ),
+            |(br, d)| BRelativeAddress::Displacement(br, d),
+        ),
+        map(preceded(tag("$"), parse_base_register), |br| {
+            BRelativeAddress::Simple(br)
+        }),
+    ))(input)
+}
+
 fn parse_address_expression(input: &str) -> IResult<&str, AddressExpression> {
     alt((
         parse_immediate_address_expression,
@@ -559,6 +645,12 @@ fn parse_label_address_expression(input: &str) -> IResult<&str, AddressExpressio
 }
 
 fn parse_displacement_address_expression(input: &str) -> IResult<&str, AddressExpression> {
+    let (input, disp) = parse_word_displacement(input)?;
+
+    Ok((input, AddressExpression::WordDisplacement(disp)))
+}
+
+fn parse_word_displacement(input: &str) -> IResult<&str, i128> {
     // Get displacement sign
     let (input, is_positive) = alt((value(true, tag("+")), value(false, tag("-"))))(input)?;
 
@@ -567,10 +659,10 @@ fn parse_displacement_address_expression(input: &str) -> IResult<&str, AddressEx
 
     Ok((
         input,
-        AddressExpression::WordDisplacement(match is_positive {
+        match is_positive {
             true => disp as i128,
             false => -(disp as i128),
-        }),
+        },
     ))
 }
 
@@ -681,7 +773,8 @@ mod tests {
     use std::vec;
 
     use crate::assembler::statements::{
-        AddressExpression, BaseRegister, BranchLocation, BranchOnIndicatorsOpCode,
+        AddressExpression, BRelativeAddress, BRelativeAddressMode, BaseRegister, BranchLocation,
+        BranchOnIndicatorsOpCode, ImmediateAddress, ImmediateAddressMode, PRelativeAddress,
     };
 
     use super::*;
@@ -1058,6 +1151,82 @@ mod tests {
             (
                 "=$B3",
                 AddressSyllable::RegisterAddressing(Register::Base(BaseRegister::B3)),
+            ),
+            ("=-42", AddressSyllable::ImmediateOperand(-42)),
+            (
+                "<TEST",
+                AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Direct(
+                    ImmediateAddress::Simple(AddressExpression::Label("TEST".to_owned())),
+                )),
+            ),
+            (
+                "*<0x1234",
+                AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Indirect(
+                    ImmediateAddress::Simple(AddressExpression::Immediate(0x1234)),
+                )),
+            ),
+            (
+                "<-3.$R1",
+                AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Direct(
+                    ImmediateAddress::Indexed(
+                        AddressExpression::WordDisplacement(-3),
+                        DataRegister::R1,
+                    ),
+                )),
+            ),
+            (
+                "*<0x0000.$R2",
+                AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Indirect(
+                    ImmediateAddress::Indexed(AddressExpression::Immediate(0), DataRegister::R2),
+                )),
+            ),
+            (
+                "LOOP",
+                AddressSyllable::PRelative(PRelativeAddress::Direct(AddressExpression::Label(
+                    "LOOP".to_owned(),
+                ))),
+            ),
+            (
+                "0x2000",
+                AddressSyllable::PRelative(PRelativeAddress::Direct(AddressExpression::Immediate(
+                    0x2000,
+                ))),
+            ),
+            (
+                "$B1",
+                AddressSyllable::BRelative(BRelativeAddressMode::Direct(BRelativeAddress::Simple(
+                    BaseRegister::B1,
+                ))),
+            ),
+            (
+                "*$B2",
+                AddressSyllable::BRelative(BRelativeAddressMode::Indirect(
+                    BRelativeAddress::Simple(BaseRegister::B2),
+                )),
+            ),
+            (
+                "$B3.$R1",
+                AddressSyllable::BRelative(BRelativeAddressMode::Direct(
+                    BRelativeAddress::Indexed(BaseRegister::B3, DataRegister::R1),
+                )),
+            ),
+            (
+                "*$B4.$R2",
+                AddressSyllable::BRelative(BRelativeAddressMode::Indirect(
+                    BRelativeAddress::Indexed(BaseRegister::B4, DataRegister::R2),
+                )),
+            ),
+            (
+                "$B5.+13",
+                AddressSyllable::BRelative(BRelativeAddressMode::Direct(
+                    BRelativeAddress::Displacement(BaseRegister::B5, 13),
+                )),
+            ),
+            (
+                "*$B6.-2",
+                AddressSyllable::BRelative(BRelativeAddressMode::Indirect(
+                    BRelativeAddress::Displacement(BaseRegister::B6, -2),
+                )),
             ),
         ];
         for (input, exp_output) in tests {
