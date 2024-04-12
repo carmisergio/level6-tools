@@ -3,8 +3,8 @@ use std::ops::Add;
 use super::statements::{
     AddressExpression, AddressSyllable, BRelativeAddress, BRelativeAddressMode, BaseRegister,
     BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, DataDefinitionSize,
-    DataRegister, ImmediateAddress, ImmediateAddressMode, Mnemonic, PRelativeAddress, Register,
-    ShortValueImmediateOpCode, Statement,
+    DataRegister, ImmediateAddress, ImmediateAddressMode, IncDec, Mnemonic, PRelativeAddress,
+    Register, ShortValueImmediateOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -592,6 +592,12 @@ fn parse_address_syllable_prelative_addressing(input: &str) -> IResult<&str, Add
 
 fn parse_address_syllable_brelative_addressing(input: &str) -> IResult<&str, AddressSyllable> {
     alt((
+        map(parse_address_syllable_brelative_pushpop, |bra| {
+            AddressSyllable::BRelative(bra)
+        }),
+        map(parse_address_syllable_brelative_incdec_indexed, |bra| {
+            AddressSyllable::BRelative(bra)
+        }),
         map(
             preceded(tag("*"), parse_address_syllable_brelative_address),
             |ba| AddressSyllable::BRelative(BRelativeAddressMode::Indirect(ba)),
@@ -600,6 +606,26 @@ fn parse_address_syllable_brelative_addressing(input: &str) -> IResult<&str, Add
             AddressSyllable::BRelative(BRelativeAddressMode::Direct(ba))
         }),
     ))(input)
+}
+
+fn parse_address_syllable_brelative_pushpop(input: &str) -> IResult<&str, BRelativeAddressMode> {
+    map(
+        tuple((parse_incdec_sign, preceded(tag("$"), parse_base_register))),
+        |(incdec, br)| BRelativeAddressMode::PushPop(br, incdec),
+    )(input)
+}
+
+fn parse_address_syllable_brelative_incdec_indexed(
+    input: &str,
+) -> IResult<&str, BRelativeAddressMode> {
+    map(
+        tuple((
+            preceded(tag("$"), parse_base_register),
+            preceded(tag("."), parse_incdec_sign),
+            preceded(tag("$"), parse_data_register),
+        )),
+        |(br, incdec, dr)| BRelativeAddressMode::IncDecIndexed(br, dr, incdec),
+    )(input)
 }
 
 fn parse_address_syllable_brelative_address(input: &str) -> IResult<&str, BRelativeAddress> {
@@ -698,6 +724,13 @@ pub fn parse_string_to_i128s(input: &str) -> IResult<&str, Vec<i128>> {
     })(input)
 }
 
+fn parse_incdec_sign(input: &str) -> IResult<&str, IncDec> {
+    alt((
+        value(IncDec::Increment, tag("+")),
+        value(IncDec::Decrement, tag("-")),
+    ))(input)
+}
+
 pub fn parse_escaped_string(input: &str) -> IResult<&str, String> {
     delimited(tag("\""), parse_escaped_string_contents, tag("\""))(input)
 }
@@ -774,7 +807,7 @@ mod tests {
 
     use crate::assembler::statements::{
         AddressExpression, BRelativeAddress, BRelativeAddressMode, BaseRegister, BranchLocation,
-        BranchOnIndicatorsOpCode, ImmediateAddress, ImmediateAddressMode, PRelativeAddress,
+        BranchOnIndicatorsOpCode, ImmediateAddress, ImmediateAddressMode, IncDec, PRelativeAddress,
     };
 
     use super::*;
@@ -1226,6 +1259,36 @@ mod tests {
                 "*$B6.-2",
                 AddressSyllable::BRelative(BRelativeAddressMode::Indirect(
                     BRelativeAddress::Displacement(BaseRegister::B6, -2),
+                )),
+            ),
+            (
+                "+$B7",
+                AddressSyllable::BRelative(BRelativeAddressMode::PushPop(
+                    BaseRegister::B7,
+                    IncDec::Increment,
+                )),
+            ),
+            (
+                "-$B1",
+                AddressSyllable::BRelative(BRelativeAddressMode::PushPop(
+                    BaseRegister::B1,
+                    IncDec::Decrement,
+                )),
+            ),
+            (
+                "$B2.+$R1",
+                AddressSyllable::BRelative(BRelativeAddressMode::IncDecIndexed(
+                    BaseRegister::B2,
+                    DataRegister::R1,
+                    IncDec::Increment,
+                )),
+            ),
+            (
+                "$B3.-$R2",
+                AddressSyllable::BRelative(BRelativeAddressMode::IncDecIndexed(
+                    BaseRegister::B3,
+                    DataRegister::R2,
+                    IncDec::Decrement,
                 )),
             ),
         ];

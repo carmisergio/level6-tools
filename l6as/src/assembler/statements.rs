@@ -323,6 +323,8 @@ pub enum PRelativeAddress {
 pub enum BRelativeAddressMode {
     Direct(BRelativeAddress),
     Indirect(BRelativeAddress),
+    IncDecIndexed(BaseRegister, DataRegister, IncDec),
+    PushPop(BaseRegister, IncDec),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -330,4 +332,10 @@ pub enum BRelativeAddress {
     Simple(BaseRegister),
     Indexed(BaseRegister, DataRegister),
     Displacement(BaseRegister, i128),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IncDec {
+    Increment,
+    Decrement,
 }
