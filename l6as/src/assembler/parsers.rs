@@ -1,10 +1,9 @@
-use std::ops::Add;
-
 use super::statements::{
-    AddressExpression, AddressSyllable, BRelativeAddress, BRelativeAddressMode, BaseRegister,
-    BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, DataDefinitionSize,
-    DataRegister, ImmediateAddress, ImmediateAddressMode, IncDec, Mnemonic, PRelativeAddress,
-    Register, ShortValueImmediateOpCode, Statement,
+    AddressExpression, AddressSyllable, AddressSyllableType, BRelativeAddress,
+    BRelativeAddressMode, BaseRegister, BranchLocation, BranchOnIndicatorsOpCode,
+    BranchOnRegistersOpCode, DataDefinitionSize, DataRegister, ImmediateAddress,
+    ImmediateAddressMode, IncDec, Mnemonic, PRelativeAddress, Register, ShortValueImmediateOpCode,
+    SingleOperandOpCode, SingleOperandStatementOptions, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -73,11 +72,6 @@ pub fn parse_statement(input: &str) -> IResult<&str, Statement, AssemblerParseEr
         }
     };
 
-    // println!(
-    //     "Mnemonic: {}, args: {:?}, statement: {:?}",
-    //     mnemonic, args, statement
-    // );
-
     Ok(("", statement))
 }
 
@@ -145,6 +139,7 @@ fn encapsulate_statement(
         StatementKind::ShortValueImmediate => {
             encapsulate_short_value_immediate_statement(mnemo, args)
         }
+        StatementKind::SingleOperand => encapsulate_single_operand_statement(mnemo, args),
     }
 }
 
@@ -198,6 +193,32 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
         "CMV" => Ok(Mnemonic::CMV),
         "ADV" => Ok(Mnemonic::ADV),
         "MLV" => Ok(Mnemonic::MLV),
+
+        // Single Operand instructions
+        "INC" => Ok(Mnemonic::INC),
+        "DEC" => Ok(Mnemonic::DEC),
+        "NEG" => Ok(Mnemonic::NEG),
+        "CPL" => Ok(Mnemonic::CPL),
+        "CL" => Ok(Mnemonic::CL),
+        "CLH" => Ok(Mnemonic::CLH),
+        "CMZ" => Ok(Mnemonic::CMZ),
+        "CMN" => Ok(Mnemonic::CMN),
+        "CAD" => Ok(Mnemonic::CAD),
+        "STS" => Ok(Mnemonic::STS),
+        "JMP" => Ok(Mnemonic::JMP),
+        "ENT" => Ok(Mnemonic::ENT),
+        "LEV" => Ok(Mnemonic::LEV),
+        "SAVE" => Ok(Mnemonic::SAVE),
+        "RSTR" => Ok(Mnemonic::RSTR),
+        "LB" => Ok(Mnemonic::LB),
+        "LBF" => Ok(Mnemonic::LBF),
+        "LBT" => Ok(Mnemonic::LBT),
+        "LBC" => Ok(Mnemonic::LBC),
+        "LBS" => Ok(Mnemonic::LBS),
+        "AID" => Ok(Mnemonic::AID),
+        "LDI" => Ok(Mnemonic::LDI),
+        "SDI" => Ok(Mnemonic::SDI),
+        "SID" => Ok(Mnemonic::SID),
         _ => Err(()),
     }
 }
@@ -360,6 +381,117 @@ fn encapsulate_data_definition_statement(
     }
 
     Ok(Statement::DataDefinition(size, values))
+}
+
+fn encapsulate_single_operand_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 1 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            1,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match mnemo {
+        Mnemonic::INC => SingleOperandOpCode::INC,
+        Mnemonic::DEC => SingleOperandOpCode::DEC,
+        Mnemonic::NEG => SingleOperandOpCode::NEG,
+        Mnemonic::CPL => SingleOperandOpCode::CPL,
+        Mnemonic::CL => SingleOperandOpCode::CL,
+        Mnemonic::CLH => SingleOperandOpCode::CLH,
+        Mnemonic::CMZ => SingleOperandOpCode::CMZ,
+        Mnemonic::CMN => SingleOperandOpCode::CMN,
+        Mnemonic::CAD => SingleOperandOpCode::CAD,
+        Mnemonic::STS => SingleOperandOpCode::STS,
+        Mnemonic::JMP => SingleOperandOpCode::JMP,
+        Mnemonic::ENT => SingleOperandOpCode::ENT,
+        Mnemonic::LEV => SingleOperandOpCode::LEV,
+        Mnemonic::SAVE => SingleOperandOpCode::SAVE,
+        Mnemonic::RSTR => SingleOperandOpCode::RSTR,
+        Mnemonic::LB => SingleOperandOpCode::LB,
+        Mnemonic::LBF => SingleOperandOpCode::LBF,
+        Mnemonic::LBT => SingleOperandOpCode::LBT,
+        Mnemonic::LBC => SingleOperandOpCode::LBC,
+        Mnemonic::LBS => SingleOperandOpCode::LBS,
+        Mnemonic::AID => SingleOperandOpCode::AID,
+        Mnemonic::LDI => SingleOperandOpCode::LDI,
+        Mnemonic::SDI => SingleOperandOpCode::SDI,
+        Mnemonic::SID => SingleOperandOpCode::SID,
+        _ => panic!("invalid OpCode for SingleOperand"),
+    };
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[0])?;
+
+    // Get options for this mnemonic
+    let opts = get_single_operand_statement_options(&op);
+
+    Ok(Statement::SingleOperand(op, addr_syl, opts))
+}
+
+fn get_single_operand_statement_options(op: &SingleOperandOpCode) -> SingleOperandStatementOptions {
+    // Get valid register type
+    let as_type = match op {
+        SingleOperandOpCode::INC => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::DEC => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::NEG => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::CPL => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::CL => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::CLH => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::CMZ => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::CMN => AddressSyllableType::BaseRegister,
+        SingleOperandOpCode::CAD => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::STS => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::JMP => AddressSyllableType::MemoryOnly,
+        SingleOperandOpCode::ENT => AddressSyllableType::MemoryOnly,
+        SingleOperandOpCode::LEV => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::SAVE => AddressSyllableType::MemoryOnly,
+        SingleOperandOpCode::RSTR => AddressSyllableType::MemoryOnly,
+        SingleOperandOpCode::LB => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::LBF => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::LBT => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::LBC => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::LBS => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::AID => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::LDI => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::SDI => AddressSyllableType::DataRegister,
+        SingleOperandOpCode::SID => AddressSyllableType::DataRegister,
+    };
+
+    // Check if this op has a maskword
+    let has_mask = match op {
+        SingleOperandOpCode::INC => false,
+        SingleOperandOpCode::DEC => false,
+        SingleOperandOpCode::NEG => false,
+        SingleOperandOpCode::CPL => false,
+        SingleOperandOpCode::CL => false,
+        SingleOperandOpCode::CLH => false,
+        SingleOperandOpCode::CMZ => false,
+        SingleOperandOpCode::CMN => false,
+        SingleOperandOpCode::CAD => false,
+        SingleOperandOpCode::STS => false,
+        SingleOperandOpCode::JMP => false,
+        SingleOperandOpCode::ENT => false,
+        SingleOperandOpCode::LEV => true,
+        SingleOperandOpCode::SAVE => true,
+        SingleOperandOpCode::RSTR => true,
+        SingleOperandOpCode::LB => true,
+        SingleOperandOpCode::LBF => true,
+        SingleOperandOpCode::LBT => true,
+        SingleOperandOpCode::LBC => true,
+        SingleOperandOpCode::LBS => true,
+        SingleOperandOpCode::AID => false,
+        SingleOperandOpCode::LDI => false,
+        SingleOperandOpCode::SDI => false,
+        SingleOperandOpCode::SID => false,
+    };
+
+    SingleOperandStatementOptions { as_type, has_mask }
 }
 
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {

@@ -1,4 +1,5 @@
 use core::fmt;
+use std::ops::Add;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mnemonic {
     // Assembler directives
@@ -48,6 +49,32 @@ pub enum Mnemonic {
     CMV,
     ADV,
     MLV,
+
+    // Single Operand instructions
+    INC,
+    DEC,
+    NEG,
+    CPL,
+    CL,
+    CLH,
+    CMZ,
+    CMN,
+    CAD,
+    STS,
+    JMP,
+    ENT,
+    LEV,
+    SAVE,
+    RSTR,
+    LB,
+    LBF,
+    LBT,
+    LBC,
+    LBS,
+    AID,
+    LDI,
+    SDI,
+    SID,
 }
 
 impl Mnemonic {
@@ -101,6 +128,32 @@ impl Mnemonic {
             Self::CMV => StatementKind::ShortValueImmediate,
             Self::ADV => StatementKind::ShortValueImmediate,
             Self::MLV => StatementKind::ShortValueImmediate,
+
+            // Single Operand Instructions
+            Self::INC => StatementKind::SingleOperand,
+            Self::DEC => StatementKind::SingleOperand,
+            Self::NEG => StatementKind::SingleOperand,
+            Self::CPL => StatementKind::SingleOperand,
+            Self::CL => StatementKind::SingleOperand,
+            Self::CLH => StatementKind::SingleOperand,
+            Self::CMZ => StatementKind::SingleOperand,
+            Self::CMN => StatementKind::SingleOperand,
+            Self::CAD => StatementKind::SingleOperand,
+            Self::STS => StatementKind::SingleOperand,
+            Self::JMP => StatementKind::SingleOperand,
+            Self::ENT => StatementKind::SingleOperand,
+            Self::LEV => StatementKind::SingleOperand,
+            Self::SAVE => StatementKind::SingleOperand,
+            Self::RSTR => StatementKind::SingleOperand,
+            Self::LB => StatementKind::SingleOperand,
+            Self::LBF => StatementKind::SingleOperand,
+            Self::LBT => StatementKind::SingleOperand,
+            Self::LBC => StatementKind::SingleOperand,
+            Self::LBS => StatementKind::SingleOperand,
+            Self::AID => StatementKind::SingleOperand,
+            Self::LDI => StatementKind::SingleOperand,
+            Self::SDI => StatementKind::SingleOperand,
+            Self::SID => StatementKind::SingleOperand,
         }
     }
 }
@@ -154,6 +207,32 @@ impl Mnemonic {
             Self::CMV => "CMV",
             Self::ADV => "ADV",
             Self::MLV => "MLV",
+
+            // Single Operand instructions
+            Self::INC => "INC",
+            Self::DEC => "DEC",
+            Self::NEG => "NEG",
+            Self::CPL => "CPL",
+            Self::CL => "CL",
+            Self::CLH => "CLH",
+            Self::CMZ => "CMZ",
+            Self::CMN => "CMN",
+            Self::CAD => "CAD",
+            Self::STS => "STS",
+            Self::JMP => "JMP",
+            Self::ENT => "ENT",
+            Self::LEV => "LEV",
+            Self::SAVE => "SAVE",
+            Self::RSTR => "RSTR",
+            Self::LB => "LB",
+            Self::LBF => "LBF",
+            Self::LBT => "LBT",
+            Self::LBC => "LBC",
+            Self::LBS => "LBS",
+            Self::AID => "AID",
+            Self::LDI => "LDI",
+            Self::SDI => "SDI",
+            Self::SID => "SID",
         }
     }
 }
@@ -171,6 +250,7 @@ pub enum StatementKind {
     BranchOnIndicators,
     BranchOnRegisters,
     ShortValueImmediate,
+    SingleOperand,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -180,6 +260,24 @@ pub enum Statement {
     BranchOnIndicators(BranchOnIndicatorsOpCode, BranchLocation),
     BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
     ShortValueImmediate(ShortValueImmediateOpCode, DataRegister, i128),
+    SingleOperand(
+        SingleOperandOpCode,
+        AddressSyllable,
+        SingleOperandStatementOptions,
+    ),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SingleOperandStatementOptions {
+    pub as_type: AddressSyllableType,
+    pub has_mask: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AddressSyllableType {
+    DataRegister,
+    BaseRegister,
+    MemoryOnly,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -239,7 +337,7 @@ pub enum ShortValueImmediateOpCode {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum SingleOperandInstructionOpCode {
+pub enum SingleOperandOpCode {
     INC,
     DEC,
     NEG,
@@ -247,7 +345,23 @@ pub enum SingleOperandInstructionOpCode {
     CL,
     CLH,
     CMZ,
-    // CMN, // I don't know because it's a base thing
+    CMN,
+    CAD,
+    STS,
+    JMP,
+    ENT,
+    LEV,
+    SAVE,
+    RSTR,
+    LB,
+    LBF,
+    LBT,
+    LBC,
+    LBS,
+    AID,
+    LDI,
+    SDI,
+    SID,
 }
 
 #[derive(Debug, Clone, PartialEq)]

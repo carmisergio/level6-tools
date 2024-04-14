@@ -31,6 +31,9 @@ pub fn codegen(
         Statement::ShortValueImmediate(op, reg, value) => {
             codegen_short_value_immediate(op, reg, *value)
         }
+        Statement::SingleOperand(_, _, _) => {
+            panic!("Not implemented!")
+        }
     }
 }
 

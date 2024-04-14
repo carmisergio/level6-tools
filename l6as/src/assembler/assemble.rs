@@ -145,29 +145,4 @@ fn parse_code_line(
     } else {
         Ok((label, None))
     }
-
-    // // Parse statement
-    // let (_input, statement) = match parse_statement(input) {
-    //     Ok((input, res)) => (input, Some(res)),
-    //     Err(err) => {
-    //         match err {
-    //             Err::Failure(err) => print_assembler_error(AssemblerError {
-    //                 kind: err.kind,
-    //                 location: Some(location.clone()),
-    //             }),
-    //             Err::Error(err) => print_assembler_error(AssemblerError {
-    //                 kind: err.kind,
-    //                 location: Some(location.clone()),
-    //             }),
-    //             Err::Incomplete(_) => {}
-    //         }
-    //         error_occurred = true;
-    //         (input, None)
-    //     }
-    // };
-
-    // match error_occurred {
-    //     false => Ok((label, statement)),
-    //     true => Err((label, statement)),
-    // }
 }
