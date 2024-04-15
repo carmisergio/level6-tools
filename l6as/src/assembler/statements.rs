@@ -1,5 +1,4 @@
 use core::fmt;
-use std::ops::Add;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mnemonic {
     // Assembler directives
@@ -130,30 +129,30 @@ impl Mnemonic {
             Self::MLV => StatementKind::ShortValueImmediate,
 
             // Single Operand Instructions
-            Self::INC => StatementKind::SingleOperand,
-            Self::DEC => StatementKind::SingleOperand,
-            Self::NEG => StatementKind::SingleOperand,
-            Self::CPL => StatementKind::SingleOperand,
-            Self::CL => StatementKind::SingleOperand,
-            Self::CLH => StatementKind::SingleOperand,
-            Self::CMZ => StatementKind::SingleOperand,
-            Self::CMN => StatementKind::SingleOperand,
-            Self::CAD => StatementKind::SingleOperand,
-            Self::STS => StatementKind::SingleOperand,
-            Self::JMP => StatementKind::SingleOperand,
-            Self::ENT => StatementKind::SingleOperand,
-            Self::LEV => StatementKind::SingleOperand,
-            Self::SAVE => StatementKind::SingleOperand,
-            Self::RSTR => StatementKind::SingleOperand,
-            Self::LB => StatementKind::SingleOperand,
-            Self::LBF => StatementKind::SingleOperand,
-            Self::LBT => StatementKind::SingleOperand,
-            Self::LBC => StatementKind::SingleOperand,
-            Self::LBS => StatementKind::SingleOperand,
-            Self::AID => StatementKind::SingleOperand,
-            Self::LDI => StatementKind::SingleOperand,
-            Self::SDI => StatementKind::SingleOperand,
-            Self::SID => StatementKind::SingleOperand,
+            Self::INC => StatementKind::SingleOperandData,
+            Self::DEC => StatementKind::SingleOperandData,
+            Self::NEG => StatementKind::SingleOperandData,
+            Self::CPL => StatementKind::SingleOperandData,
+            Self::CL => StatementKind::SingleOperandData,
+            Self::CLH => StatementKind::SingleOperandData,
+            Self::CMZ => StatementKind::SingleOperandData,
+            Self::CMN => StatementKind::SingleOperandBase,
+            Self::CAD => StatementKind::SingleOperandData,
+            Self::STS => StatementKind::SingleOperandData,
+            Self::JMP => StatementKind::SingleOperandMemonly,
+            Self::ENT => StatementKind::SingleOperandMemonly,
+            Self::LEV => StatementKind::SingleOperandDataMasked,
+            Self::SAVE => StatementKind::SingleOperandMemonlyMasked,
+            Self::RSTR => StatementKind::SingleOperandMemonlyMasked,
+            Self::LB => StatementKind::SingleOperandDataMasked,
+            Self::LBF => StatementKind::SingleOperandDataMasked,
+            Self::LBT => StatementKind::SingleOperandDataMasked,
+            Self::LBC => StatementKind::SingleOperandDataMasked,
+            Self::LBS => StatementKind::SingleOperandDataMasked,
+            Self::AID => StatementKind::SingleOperandData,
+            Self::LDI => StatementKind::SingleOperandData,
+            Self::SDI => StatementKind::SingleOperandData,
+            Self::SID => StatementKind::SingleOperandData,
         }
     }
 }
@@ -250,7 +249,11 @@ pub enum StatementKind {
     BranchOnIndicators,
     BranchOnRegisters,
     ShortValueImmediate,
-    SingleOperand,
+    SingleOperandData,
+    SingleOperandBase,
+    SingleOperandMemonly,
+    SingleOperandDataMasked,
+    SingleOperandMemonlyMasked,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -260,24 +263,7 @@ pub enum Statement {
     BranchOnIndicators(BranchOnIndicatorsOpCode, BranchLocation),
     BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
     ShortValueImmediate(ShortValueImmediateOpCode, DataRegister, i128),
-    SingleOperand(
-        SingleOperandOpCode,
-        AddressSyllable,
-        SingleOperandStatementOptions,
-    ),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SingleOperandStatementOptions {
-    pub as_type: AddressSyllableType,
-    pub has_mask: bool,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum AddressSyllableType {
-    DataRegister,
-    BaseRegister,
-    MemoryOnly,
+    SingleOperand(SingleOperandOpCode, AddressSyllable, Option<i128>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

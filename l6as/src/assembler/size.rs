@@ -1,6 +1,4 @@
-use super::statements::{
-    AddressSyllable, BranchLocation, DataDefinitionSize, SingleOperandStatementOptions, Statement,
-};
+use super::statements::{AddressSyllable, BranchLocation, DataDefinitionSize, Statement};
 
 /// Computes the size of a statement in memory (in words)
 pub fn statement_size(statement: &Statement, _cur_addr: u64) -> u64 {
@@ -11,7 +9,7 @@ pub fn statement_size(statement: &Statement, _cur_addr: u64) -> u64 {
         Statement::BranchOnIndicators(_op, branchloc) => branch_inst_size(branchloc),
         Statement::BranchOnRegisters(_op, _reg, branchloc) => branch_inst_size(branchloc),
         Statement::ShortValueImmediate(_op, _reg, _value) => 1,
-        Statement::SingleOperand(_op, addr_syl, opts) => single_operand_inst_size(addr_syl, opts),
+        Statement::SingleOperand(_op, addr_syl, mask) => single_operand_inst_size(addr_syl, mask),
     }
 }
 
@@ -27,15 +25,8 @@ pub fn data_definition_dir_size(size: &DataDefinitionSize, chunks: &Vec<i128>) -
 }
 
 /// Computes the size of a Single Operand instruction
-pub fn single_operand_inst_size(
-    addr_syl: &AddressSyllable,
-    opts: &SingleOperandStatementOptions,
-) -> u64 {
-    1 + address_syl_extra_words(addr_syl)
-        + match opts.has_mask {
-            false => 0,
-            true => 1,
-        }
+pub fn single_operand_inst_size(addr_syl: &AddressSyllable, mask: &Option<i128>) -> u64 {
+    1 + address_syl_extra_words(addr_syl) + mask_extra_words(mask)
 }
 
 /// Computes amount of extra words used by a Branch location
@@ -60,5 +51,13 @@ pub fn address_syl_extra_words(address_syllable: &AddressSyllable) -> u64 {
         AddressSyllable::ImmediateOperand(_) => 1,
         AddressSyllable::BRelative(_) => 0,
         AddressSyllable::PRelative(_) => 1,
+    }
+}
+
+/// Computes amount of extra words used by an Address Syllable
+pub fn mask_extra_words(mask: &Option<i128>) -> u64 {
+    match mask {
+        None => 0,
+        Some(_) => 1,
     }
 }

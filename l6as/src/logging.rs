@@ -109,6 +109,9 @@ pub enum AssemblerErrorKind {
     InvalidImmediateValue(String),
     InvalidDataDefinitionChunk(String),
     InvalidAddressSyllable(String),
+    WrongRegisterType(String, Mnemonic),
+    RegisterAddressingInvalid(Mnemonic),
+    InvalidMaskWord(String),
 
     // Code Generation
     BranchAddressOutOfRange(u64),
@@ -165,6 +168,15 @@ impl AssemblerError {
             }
             AssemblerErrorKind::InvalidAddressSyllable(arg) => {
                 format!("invalid address syllable: \"{}\"", arg)
+            }
+            AssemblerErrorKind::WrongRegisterType(arg, mnemo) => {
+                format!("wrong register type for {}: \"{}\"", mnemo, arg)
+            }
+            AssemblerErrorKind::RegisterAddressingInvalid(mnemo) => {
+                format!("register addressing invalid for {}", mnemo)
+            }
+            AssemblerErrorKind::InvalidMaskWord(arg) => {
+                format!("invalid mask word: {}", arg)
             }
             AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(arg) => {
                 format!("unexpected characters at end of argument: \"{}\"", arg)

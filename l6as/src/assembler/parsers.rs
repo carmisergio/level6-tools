@@ -1,9 +1,8 @@
 use super::statements::{
-    AddressExpression, AddressSyllable, AddressSyllableType, BRelativeAddress,
-    BRelativeAddressMode, BaseRegister, BranchLocation, BranchOnIndicatorsOpCode,
-    BranchOnRegistersOpCode, DataDefinitionSize, DataRegister, ImmediateAddress,
-    ImmediateAddressMode, IncDec, Mnemonic, PRelativeAddress, Register, ShortValueImmediateOpCode,
-    SingleOperandOpCode, SingleOperandStatementOptions, Statement,
+    AddressExpression, AddressSyllable, BRelativeAddress, BRelativeAddressMode, BaseRegister,
+    BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, DataDefinitionSize,
+    DataRegister, ImmediateAddress, ImmediateAddressMode, IncDec, Mnemonic, PRelativeAddress,
+    Register, ShortValueImmediateOpCode, SingleOperandOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -139,7 +138,17 @@ fn encapsulate_statement(
         StatementKind::ShortValueImmediate => {
             encapsulate_short_value_immediate_statement(mnemo, args)
         }
-        StatementKind::SingleOperand => encapsulate_single_operand_statement(mnemo, args),
+        StatementKind::SingleOperandData => encapsulate_single_operand_data_statement(mnemo, args),
+        StatementKind::SingleOperandBase => encapsulate_single_operand_base_statement(mnemo, args),
+        StatementKind::SingleOperandMemonly => {
+            encapsulate_single_operand_memonly_statement(mnemo, args)
+        }
+        StatementKind::SingleOperandDataMasked => {
+            encapsulate_single_operand_data_masked_statement(mnemo, args)
+        }
+        StatementKind::SingleOperandMemonlyMasked => {
+            encapsulate_single_operand_memonly_masked_statement(mnemo, args)
+        }
     }
 }
 
@@ -383,7 +392,7 @@ fn encapsulate_data_definition_statement(
     Ok(Statement::DataDefinition(size, values))
 }
 
-fn encapsulate_single_operand_statement(
+fn encapsulate_single_operand_data_statement(
     mnemo: Mnemonic,
     args: &[String],
 ) -> Result<Statement, AssemblerErrorKind> {
@@ -397,7 +406,160 @@ fn encapsulate_single_operand_statement(
     }
 
     // Get op code
-    let op = match mnemo {
+    let op = match_single_operand_opcode(&mnemo);
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[0])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &addr_syl {
+        if let Register::Base(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    Ok(Statement::SingleOperand(op, addr_syl, None))
+}
+
+fn encapsulate_single_operand_base_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 1 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            1,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match_single_operand_opcode(&mnemo);
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[0])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &addr_syl {
+        if let Register::Data(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    Ok(Statement::SingleOperand(op, addr_syl, None))
+}
+
+fn encapsulate_single_operand_memonly_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 1 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            1,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match_single_operand_opcode(&mnemo);
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[0])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(_) = &addr_syl {
+        return Err(AssemblerErrorKind::RegisterAddressingInvalid(mnemo));
+    }
+
+    Ok(Statement::SingleOperand(op, addr_syl, None))
+}
+
+fn encapsulate_single_operand_data_masked_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() < 1 && args.len() > 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            1,
+            args.len(),
+        ));
+    }
+
+    // Check if mask needs to be parsed
+    let mask = if args.len() == 2 {
+        parse_maskword_arg(&args[1])?
+    } else {
+        0
+    };
+
+    // Potential TODO: Only add mask when addressing is not indexed
+
+    // Get op code
+    let op = match_single_operand_opcode(&mnemo);
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[0])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &addr_syl {
+        if let Register::Base(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    Ok(Statement::SingleOperand(op, addr_syl, Some(mask)))
+}
+
+fn encapsulate_single_operand_memonly_masked_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() < 1 && args.len() > 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            1,
+            args.len(),
+        ));
+    }
+
+    // Check if mask needs to be parsed
+    let mask = if args.len() == 2 {
+        parse_maskword_arg(&args[1])?
+    } else {
+        0
+    };
+
+    // Get op code
+    let op = match_single_operand_opcode(&mnemo);
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[0])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(_) = &addr_syl {
+        return Err(AssemblerErrorKind::RegisterAddressingInvalid(mnemo));
+    }
+
+    Ok(Statement::SingleOperand(op, addr_syl, Some(mask)))
+}
+
+fn match_single_operand_opcode(mnemo: &Mnemonic) -> SingleOperandOpCode {
+    match mnemo {
         Mnemonic::INC => SingleOperandOpCode::INC,
         Mnemonic::DEC => SingleOperandOpCode::DEC,
         Mnemonic::NEG => SingleOperandOpCode::NEG,
@@ -423,75 +585,7 @@ fn encapsulate_single_operand_statement(
         Mnemonic::SDI => SingleOperandOpCode::SDI,
         Mnemonic::SID => SingleOperandOpCode::SID,
         _ => panic!("invalid OpCode for SingleOperand"),
-    };
-
-    // Parse address syllable
-    let addr_syl = parse_address_syllable_arg(&args[0])?;
-
-    // Get options for this mnemonic
-    let opts = get_single_operand_statement_options(&op);
-
-    Ok(Statement::SingleOperand(op, addr_syl, opts))
-}
-
-fn get_single_operand_statement_options(op: &SingleOperandOpCode) -> SingleOperandStatementOptions {
-    // Get valid register type
-    let as_type = match op {
-        SingleOperandOpCode::INC => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::DEC => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::NEG => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::CPL => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::CL => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::CLH => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::CMZ => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::CMN => AddressSyllableType::BaseRegister,
-        SingleOperandOpCode::CAD => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::STS => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::JMP => AddressSyllableType::MemoryOnly,
-        SingleOperandOpCode::ENT => AddressSyllableType::MemoryOnly,
-        SingleOperandOpCode::LEV => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::SAVE => AddressSyllableType::MemoryOnly,
-        SingleOperandOpCode::RSTR => AddressSyllableType::MemoryOnly,
-        SingleOperandOpCode::LB => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::LBF => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::LBT => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::LBC => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::LBS => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::AID => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::LDI => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::SDI => AddressSyllableType::DataRegister,
-        SingleOperandOpCode::SID => AddressSyllableType::DataRegister,
-    };
-
-    // Check if this op has a maskword
-    let has_mask = match op {
-        SingleOperandOpCode::INC => false,
-        SingleOperandOpCode::DEC => false,
-        SingleOperandOpCode::NEG => false,
-        SingleOperandOpCode::CPL => false,
-        SingleOperandOpCode::CL => false,
-        SingleOperandOpCode::CLH => false,
-        SingleOperandOpCode::CMZ => false,
-        SingleOperandOpCode::CMN => false,
-        SingleOperandOpCode::CAD => false,
-        SingleOperandOpCode::STS => false,
-        SingleOperandOpCode::JMP => false,
-        SingleOperandOpCode::ENT => false,
-        SingleOperandOpCode::LEV => true,
-        SingleOperandOpCode::SAVE => true,
-        SingleOperandOpCode::RSTR => true,
-        SingleOperandOpCode::LB => true,
-        SingleOperandOpCode::LBF => true,
-        SingleOperandOpCode::LBT => true,
-        SingleOperandOpCode::LBC => true,
-        SingleOperandOpCode::LBS => true,
-        SingleOperandOpCode::AID => false,
-        SingleOperandOpCode::LDI => false,
-        SingleOperandOpCode::SDI => false,
-        SingleOperandOpCode::SID => false,
-    };
-
-    SingleOperandStatementOptions { as_type, has_mask }
+    }
 }
 
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {
@@ -573,6 +667,23 @@ fn parse_immediate_value_arg(input: &str) -> Result<i128, AssemblerErrorKind> {
     let (input, value) = match parse_immediate_value(input) {
         Ok(address) => address,
         Err(_) => return Err(AssemblerErrorKind::InvalidImmediateValue(input.to_owned())),
+    };
+
+    // Check for extra characters
+    if input.len() > 0 {
+        return Err(AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(
+            input.to_owned(),
+        ));
+    }
+
+    Ok(value)
+}
+
+fn parse_maskword_arg(input: &str) -> Result<i128, AssemblerErrorKind> {
+    // Parse address
+    let (input, value) = match parse_immediate_value_contents(input) {
+        Ok(address) => address,
+        Err(_) => return Err(AssemblerErrorKind::InvalidMaskWord(input.to_owned())),
     };
 
     // Check for extra characters
@@ -829,13 +940,24 @@ fn parse_immediate_value(input: &str) -> IResult<&str, i128> {
 }
 
 fn parse_immediate_value_contents(input: &str) -> IResult<&str, i128> {
-    alt((map(parse_hex_u64, |val| val as i128), parse_dec_i128))(input)
+    alt((
+        map(parse_hex_u64, |val| val as i128),
+        map(parse_bin_u64, |val| val as i128),
+        parse_dec_i128,
+    ))(input)
 }
 
 pub fn parse_hex_u64(input: &str) -> IResult<&str, u64> {
     preceded(
         tag_no_case("0x"),
         map_res(hex_digit1, |digits| u64::from_str_radix(digits, 16)),
+    )(input)
+}
+
+pub fn parse_bin_u64(input: &str) -> IResult<&str, u64> {
+    preceded(
+        tag_no_case("0b"),
+        map_res(digit1, |digits| u64::from_str_radix(digits, 2)),
     )(input)
 }
 
