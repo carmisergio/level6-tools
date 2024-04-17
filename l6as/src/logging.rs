@@ -1,4 +1,4 @@
-use super::assembler::Mnemonic;
+use super::assembler::{BaseRegister, DataRegister, Mnemonic};
 use super::preprocessor::LineLocation;
 use std::{io, path::PathBuf};
 
@@ -122,6 +122,11 @@ pub enum AssemblerErrorKind {
     ShortImmediateValueOutOfRange(i128),
     UndefinedLabel(String),
     DataDefinitionValueOutOfRange(i128),
+    ImmediateValueOutOfRange(i128),
+    InvalidIndexRegister(DataRegister),
+    ImmediateAddressOutOfRange(u64),
+    DisplacementOutOfRange(i128),
+    InvalidBaseRegister(BaseRegister),
 }
 
 #[derive(Debug)]
@@ -205,6 +210,27 @@ impl AssemblerError {
             AssemblerErrorKind::DataDefinitionValueOutOfRange(val) => {
                 format!("data definition value out of range: ({:#X}) {}", val, val)
             }
+            AssemblerErrorKind::ImmediateValueOutOfRange(val) => {
+                format!("immediate value out of range: ({:#X}) {}", val, val)
+            }
+            AssemblerErrorKind::InvalidIndexRegister(reg) => {
+                format!(
+                    "invalid index register: {} ",
+                    get_data_register_display_value(reg)
+                )
+            }
+            AssemblerErrorKind::ImmediateAddressOutOfRange(addr) => {
+                format!("immediate address out of range: ({:#X}) {}", addr, addr)
+            }
+            AssemblerErrorKind::DisplacementOutOfRange(disp) => {
+                format!("displacement out of range: {}", disp)
+            }
+            AssemblerErrorKind::InvalidBaseRegister(reg) => {
+                format!(
+                    "invalid base register: {}",
+                    get_base_register_display_value(reg)
+                )
+            }
         }
     }
 }
@@ -265,4 +291,28 @@ pub fn print_write_file_error_msg(err: io::Error) {
         "error".bright_red(),
         err
     );
+}
+
+fn get_data_register_display_value(reg: &DataRegister) -> &str {
+    match reg {
+        DataRegister::R1 => "$R1",
+        DataRegister::R2 => "$R2",
+        DataRegister::R3 => "$R3",
+        DataRegister::R4 => "$R4",
+        DataRegister::R5 => "$R5",
+        DataRegister::R6 => "$R6",
+        DataRegister::R7 => "$R7",
+    }
+}
+
+fn get_base_register_display_value(reg: &BaseRegister) -> &str {
+    match reg {
+        BaseRegister::B1 => "$B1",
+        BaseRegister::B2 => "$B2",
+        BaseRegister::B3 => "$B3",
+        BaseRegister::B4 => "$B4",
+        BaseRegister::B5 => "$B5",
+        BaseRegister::B6 => "$B6",
+        BaseRegister::B7 => "$B7",
+    }
 }

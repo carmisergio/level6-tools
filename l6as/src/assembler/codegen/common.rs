@@ -121,7 +121,7 @@ pub fn get_branch_location_field_value(
 }
 
 /// Resolve address expression to an absolute address in the u64 address space
-fn resolve_address_expression(
+pub fn resolve_address_expression(
     addr_exp: &AddressExpression,
     cur_addr: u64,
     label_table: &HashMap<String, u64>,
@@ -236,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn get_data_register_value_succ() {
+    pub fn get_data_register_value_succ() {
         let tests = [
             (DataRegister::R1, u3!(0b001)),
             (DataRegister::R2, u3!(0b010)),

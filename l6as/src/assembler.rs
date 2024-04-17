@@ -5,4 +5,4 @@ mod size;
 mod statements;
 
 pub use assemble::{assemble, AssembledLine};
-pub use statements::Mnemonic;
+pub use statements::{BaseRegister, DataRegister, Mnemonic};
