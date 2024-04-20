@@ -4,5 +4,6 @@ mod branch_on_registers;
 mod common;
 mod data_definition;
 mod short_value_immediate;
+mod single_operand;
 
 pub use common::codegen;

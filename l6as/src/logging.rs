@@ -127,6 +127,7 @@ pub enum AssemblerErrorKind {
     ImmediateAddressOutOfRange(u64),
     DisplacementOutOfRange(i128),
     InvalidBaseRegister(BaseRegister),
+    MaskWordOutOfRange(i128),
 }
 
 #[derive(Debug)]
@@ -230,6 +231,9 @@ impl AssemblerError {
                     "invalid base register: {}",
                     get_base_register_display_value(reg)
                 )
+            }
+            AssemblerErrorKind::MaskWordOutOfRange(mask) => {
+                format!("mask word out of range: ({:#X}) {}", mask, mask)
             }
         }
     }

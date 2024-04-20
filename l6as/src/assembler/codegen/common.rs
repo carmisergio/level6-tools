@@ -9,7 +9,7 @@ use crate::assembler::statements::{AddressExpression, BranchLocation, DataRegist
 use super::{
     branch_on_indicators::codegen_branch_on_indicators,
     branch_on_registers::codegen_branch_on_registers, data_definition::codegen_data_definition,
-    short_value_immediate::codegen_short_value_immediate,
+    short_value_immediate::codegen_short_value_immediate, single_operand::codegen_single_operand,
 };
 
 /// Generate raw words for one statement
@@ -31,8 +31,8 @@ pub fn codegen(
         Statement::ShortValueImmediate(op, reg, value) => {
             codegen_short_value_immediate(op, reg, *value)
         }
-        Statement::SingleOperand(_, _, _) => {
-            panic!("Not implemented!")
+        Statement::SingleOperand(op, addr_syl, mask) => {
+            codegen_single_operand(op, addr_syl, mask, cur_addr, label_table)
         }
     }
 }
@@ -163,6 +163,18 @@ pub fn get_data_register_value(reg: &DataRegister) -> u3 {
 fn twos_complement_u16(input: i16) -> u16 {
     let bytes = input.to_be_bytes();
     u16::from_be_bytes(bytes)
+}
+
+pub fn get_maskword_value(mask: i128) -> Result<u16, AssemblerErrorKind> {
+    // Maskword cannot be negative
+    if mask < 0 {
+        return Err(AssemblerErrorKind::MaskWordOutOfRange(mask));
+    }
+
+    match TryInto::<u16>::try_into(mask) {
+        Ok(val) => Ok(val),
+        Err(_) => Err(AssemblerErrorKind::MaskWordOutOfRange(mask)),
+    }
 }
 
 #[cfg(test)]

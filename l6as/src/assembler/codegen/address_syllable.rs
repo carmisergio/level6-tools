@@ -30,14 +30,12 @@ pub fn get_address_syllable_field_value(
 ) -> Result<(u7, Vec<u16>), AssemblerErrorKind> {
     let (field, extra_words) = match addr_syl {
         AddressSyllable::RegisterAddressing(reg) => encode_addr_syl_register_addressing(reg)?,
-        AddressSyllable::ImmediateOperand(val) => {
-            encode_addr_syl_immediate_operand(*val, cur_addr, label_table)?
-        }
+        AddressSyllable::ImmediateOperand(val) => encode_addr_syl_immediate_operand(*val)?,
         AddressSyllable::ImmediateAddressing(imm_addr_mode) => {
             encode_addr_syl_immediate_addressing(imm_addr_mode, cur_addr, label_table)?
         }
         AddressSyllable::BRelative(brel_addr_mode) => {
-            encode_addr_syl_brelative_addressing(brel_addr_mode, cur_addr, label_table)?
+            encode_addr_syl_brelative_addressing(brel_addr_mode)?
         }
         AddressSyllable::PRelative(prel_addr_mode) => {
             encode_addr_syl_prelative_addressing(prel_addr_mode, cur_addr, label_table)?
@@ -83,8 +81,6 @@ fn get_base_register_value_indexed(reg: &BaseRegister) -> Result<u3, AssemblerEr
 
 fn encode_addr_syl_immediate_operand(
     val: i128,
-    cur_addr: u64,
-    label_table: &HashMap<String, u64>,
 ) -> Result<(AddressSyllableField, Vec<u16>), AssemblerErrorKind> {
     let field = AddressSyllableField::new(u3!(7), u1!(0), u3!(0));
     Ok((field, vec![get_immediate_operand_extra_word(val)?]))
@@ -95,13 +91,13 @@ fn get_immediate_operand_extra_word(val: i128) -> Result<u16, AssemblerErrorKind
         // Raw value into u8
         match TryInto::<u16>::try_into(val) {
             Ok(val) => Ok(val),
-            Err(_) => Err(AssemblerErrorKind::ShortImmediateValueOutOfRange(val)),
+            Err(_) => Err(AssemblerErrorKind::ImmediateValueOutOfRange(val)),
         }
     } else {
         // Two's complemented i8 into u8
         match TryInto::<u16>::try_into(val) {
             Ok(val) => Ok(u16::from_be_bytes(val.to_be_bytes())),
-            Err(_) => Err(AssemblerErrorKind::ShortImmediateValueOutOfRange(val)),
+            Err(_) => Err(AssemblerErrorKind::ImmediateValueOutOfRange(val)),
         }
     }
 }
@@ -130,7 +126,6 @@ fn get_addr_syl_immediate_addressing_addr_modif_field(
     cur_addr: u64,
     label_table: &HashMap<String, u64>,
 ) -> Result<(u3, Vec<u16>), AssemblerErrorKind> {
-    let test = 10;
     Ok(match imm_addr {
         ImmediateAddress::Simple(ae) => (
             u3!(0),
@@ -168,27 +163,19 @@ fn get_index_register_addr_modif(reg: &DataRegister) -> Result<u3, AssemblerErro
 
 fn encode_addr_syl_brelative_addressing(
     brel_addr_mode: &BRelativeAddressMode,
-    cur_addr: u64,
-    label_table: &HashMap<String, u64>,
 ) -> Result<(AddressSyllableField, Vec<u16>), AssemblerErrorKind> {
     match brel_addr_mode {
         BRelativeAddressMode::Direct(brel_addr) => {
-            let (addr_mod, reg, extra_words) = get_addr_syl_brelative_addressing_direct_indirect(
-                brel_addr,
-                cur_addr,
-                label_table,
-            )?;
+            let (addr_mod, reg, extra_words) =
+                get_addr_syl_brelative_addressing_direct_indirect(brel_addr)?;
             Ok((
                 AddressSyllableField::new(addr_mod, u1!(0), reg),
                 extra_words,
             ))
         }
         BRelativeAddressMode::Indirect(brel_addr) => {
-            let (addr_mod, reg, extra_words) = get_addr_syl_brelative_addressing_direct_indirect(
-                brel_addr,
-                cur_addr,
-                label_table,
-            )?;
+            let (addr_mod, reg, extra_words) =
+                get_addr_syl_brelative_addressing_direct_indirect(brel_addr)?;
             Ok((
                 AddressSyllableField::new(addr_mod, u1!(1), reg),
                 extra_words,
@@ -221,8 +208,6 @@ fn encode_addr_syl_brelative_addressing(
 
 fn get_addr_syl_brelative_addressing_direct_indirect(
     brel_addr: &BRelativeAddress,
-    cur_addr: u64,
-    label_table: &HashMap<String, u64>,
 ) -> Result<(u3, u3, Vec<u16>), AssemblerErrorKind> {
     Ok(match brel_addr {
         BRelativeAddress::Simple(reg) => (u3!(0), get_base_register_value(reg), vec![]),
@@ -234,16 +219,12 @@ fn get_addr_syl_brelative_addressing_direct_indirect(
         BRelativeAddress::Displacement(reg, disp) => (
             u3!(4),
             get_base_register_value(reg),
-            vec![get_displacement_extra_word(*disp, cur_addr, label_table)?],
+            vec![get_displacement_extra_word(*disp)?],
         ),
     })
 }
 
-fn get_displacement_extra_word(
-    disp: i128,
-    cur_addr: u64,
-    label_table: &HashMap<String, u64>,
-) -> Result<u16, AssemblerErrorKind> {
+fn get_displacement_extra_word(disp: i128) -> Result<u16, AssemblerErrorKind> {
     // Verify address fits in field
     match TryInto::<i16>::try_into(disp) {
         Ok(disp) => Ok(u16::from_be_bytes(disp.to_be_bytes())),
