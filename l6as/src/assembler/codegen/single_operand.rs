@@ -81,23 +81,292 @@ fn get_single_operand_op_value(op: &SingleOperandOpCode) -> u5 {
 mod tests {
     use std::ops::Add;
 
-    use crate::assembler::statements::{BRelativeAddress, BRelativeAddressMode, BaseRegister};
+    use crate::assembler::statements::{
+        AddressExpression, BRelativeAddress, BRelativeAddressMode, BaseRegister, DataRegister,
+        ImmediateAddress, ImmediateAddressMode, IncDec, PRelativeAddress, Register,
+    };
 
     use super::*;
 
     #[test]
     fn codegen_branch_on_indicators_instructions_succ() {
-        let tests = [(
+        let tests = [
             (
-                SingleOperandOpCode::INC,
-                AddressSyllable::BRelative(BRelativeAddressMode::Direct(BRelativeAddress::Simple(
-                    BaseRegister::B1,
-                ))),
-                None,
-                100,
+                (
+                    SingleOperandOpCode::INC,
+                    AddressSyllable::RegisterAddressing(Register::Data(DataRegister::R1)),
+                    None,
+                    100,
+                ),
+                vec![0b1000101011010001],
             ),
-            vec![0b1000101010000001],
-        )];
+            (
+                (
+                    SingleOperandOpCode::CMN,
+                    AddressSyllable::RegisterAddressing(Register::Base(BaseRegister::B2)),
+                    None,
+                    0,
+                ),
+                vec![0b1000110111010010],
+            ),
+            (
+                (
+                    SingleOperandOpCode::DEC,
+                    AddressSyllable::ImmediateOperand(0x1234),
+                    None,
+                    0,
+                ),
+                vec![0b1000100011110000, 0x1234],
+            ),
+            (
+                (
+                    SingleOperandOpCode::NEG,
+                    AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Direct(
+                        ImmediateAddress::Simple(AddressExpression::Immediate(0x4567)),
+                    )),
+                    None,
+                    0,
+                ),
+                vec![0b1000001000000000, 0x4567],
+            ),
+            (
+                (
+                    SingleOperandOpCode::CPL,
+                    AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Indirect(
+                        ImmediateAddress::Simple(AddressExpression::Immediate(0x2939)),
+                    )),
+                    None,
+                    100,
+                ),
+                vec![0b1000011000001000, 0x2939],
+            ),
+            (
+                (
+                    SingleOperandOpCode::CL,
+                    AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Direct(
+                        ImmediateAddress::Indexed(
+                            AddressExpression::Immediate(0x2000),
+                            DataRegister::R1,
+                        ),
+                    )),
+                    None,
+                    100,
+                ),
+                vec![0b1000011100010000, 0x2000],
+            ),
+            (
+                (
+                    SingleOperandOpCode::CLH,
+                    AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Indirect(
+                        ImmediateAddress::Indexed(
+                            AddressExpression::Immediate(0x2000),
+                            DataRegister::R2,
+                        ),
+                    )),
+                    None,
+                    0,
+                ),
+                vec![0b1000011110101000, 0x2000],
+            ),
+            (
+                (
+                    SingleOperandOpCode::CMZ,
+                    AddressSyllable::BRelative(BRelativeAddressMode::Direct(
+                        BRelativeAddress::Simple(BaseRegister::B1),
+                    )),
+                    None,
+                    0,
+                ),
+                vec![0b1000100110000001],
+            ),
+            (
+                (
+                    SingleOperandOpCode::CAD,
+                    AddressSyllable::BRelative(BRelativeAddressMode::Indirect(
+                        BRelativeAddress::Simple(BaseRegister::B2),
+                    )),
+                    None,
+                    0,
+                ),
+                vec![0b1000111010001010],
+            ),
+            (
+                (
+                    SingleOperandOpCode::STS,
+                    AddressSyllable::BRelative(BRelativeAddressMode::Direct(
+                        BRelativeAddress::Displacement(BaseRegister::B3, 100),
+                    )),
+                    None,
+                    200,
+                ),
+                vec![0b1000110001000011, 100],
+            ),
+            (
+                (
+                    SingleOperandOpCode::JMP,
+                    AddressSyllable::BRelative(BRelativeAddressMode::Indirect(
+                        BRelativeAddress::Displacement(BaseRegister::B4, -50),
+                    )),
+                    None,
+                    200,
+                ),
+                vec![
+                    0b1000001111001100,
+                    u16::from_be_bytes((-50 as i16).to_be_bytes()),
+                ],
+            ),
+            (
+                (
+                    SingleOperandOpCode::ENT,
+                    AddressSyllable::BRelative(BRelativeAddressMode::Direct(
+                        BRelativeAddress::Indexed(BaseRegister::B5, DataRegister::R3),
+                    )),
+                    None,
+                    200,
+                ),
+                vec![0b1000101110110101],
+            ),
+            (
+                (
+                    SingleOperandOpCode::LEV,
+                    AddressSyllable::BRelative(BRelativeAddressMode::Indirect(
+                        BRelativeAddress::Indexed(BaseRegister::B6, DataRegister::R1),
+                    )),
+                    Some(0xAAAA),
+                    200,
+                ),
+                vec![0b1000111000011110, 0xAAAA],
+            ),
+            (
+                (
+                    SingleOperandOpCode::SAVE,
+                    AddressSyllable::BRelative(BRelativeAddressMode::PushPop(
+                        BaseRegister::B7,
+                        IncDec::Increment,
+                    )),
+                    Some(0xBBBB),
+                    300,
+                ),
+                vec![0b1000111101110111, 0xBBBB],
+            ),
+            (
+                (
+                    SingleOperandOpCode::RSTR,
+                    AddressSyllable::BRelative(BRelativeAddressMode::PushPop(
+                        BaseRegister::B1,
+                        IncDec::Decrement,
+                    )),
+                    Some(0xCCCC),
+                    300,
+                ),
+                vec![0b1000111111100001, 0xCCCC],
+            ),
+            (
+                (
+                    SingleOperandOpCode::LB,
+                    AddressSyllable::BRelative(BRelativeAddressMode::IncDecIndexed(
+                        BaseRegister::B2,
+                        DataRegister::R2,
+                        IncDec::Increment,
+                    )),
+                    Some(0x1234),
+                    300,
+                ),
+                vec![0b1000001011101110, 0x1234],
+            ),
+            (
+                (
+                    SingleOperandOpCode::LBF,
+                    AddressSyllable::BRelative(BRelativeAddressMode::IncDecIndexed(
+                        BaseRegister::B3,
+                        DataRegister::R3,
+                        IncDec::Decrement,
+                    )),
+                    Some(0x1234),
+                    300,
+                ),
+                vec![0b1000100001111011, 0x1234],
+            ),
+            (
+                (
+                    SingleOperandOpCode::LBT,
+                    AddressSyllable::PRelative(PRelativeAddress::Direct(
+                        AddressExpression::Immediate(0x1234),
+                    )),
+                    Some(0x5555),
+                    0x1000,
+                ),
+                vec![0b1000100101000000, 0x0234, 0x5555],
+            ),
+            (
+                (
+                    SingleOperandOpCode::LBC,
+                    AddressSyllable::PRelative(PRelativeAddress::Indirect(
+                        AddressExpression::Immediate(200),
+                    )),
+                    Some(0x5555),
+                    1000,
+                ),
+                vec![
+                    0b1000101101001000,
+                    u16::from_be_bytes((-800 as i16).to_be_bytes()),
+                    0x5555,
+                ],
+            ),
+            (
+                (
+                    SingleOperandOpCode::LBS,
+                    AddressSyllable::RegisterAddressing(Register::Data(DataRegister::R1)),
+                    Some(0x0000),
+                    0,
+                ),
+                vec![0b1000101001010001, 0x0000],
+            ),
+            (
+                (
+                    SingleOperandOpCode::AID,
+                    AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Direct(
+                        ImmediateAddress::Simple(AddressExpression::Immediate(0x1000)),
+                    )),
+                    None,
+                    0,
+                ),
+                vec![0b1000010000000000, 0x1000],
+            ),
+            (
+                (
+                    SingleOperandOpCode::LDI,
+                    AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Direct(
+                        ImmediateAddress::Simple(AddressExpression::Immediate(0x1000)),
+                    )),
+                    None,
+                    0,
+                ),
+                vec![0b1000110010000000, 0x1000],
+            ),
+            (
+                (
+                    SingleOperandOpCode::SDI,
+                    AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Direct(
+                        ImmediateAddress::Simple(AddressExpression::Immediate(0x1000)),
+                    )),
+                    None,
+                    0,
+                ),
+                vec![0b1000110100000000, 0x1000],
+            ),
+            (
+                (
+                    SingleOperandOpCode::SID,
+                    AddressSyllable::ImmediateAddressing(ImmediateAddressMode::Direct(
+                        ImmediateAddress::Simple(AddressExpression::Immediate(0x1000)),
+                    )),
+                    None,
+                    0,
+                ),
+                vec![0b1000010010000000, 0x1000],
+            ),
+        ];
 
         let label_table: HashMap<String, u64> = HashMap::new();
 
