@@ -74,6 +74,9 @@ pub enum Mnemonic {
     LDI,
     SDI,
     SID,
+
+    // NoOp instruction
+    NOP,
 }
 
 impl Mnemonic {
@@ -153,6 +156,9 @@ impl Mnemonic {
             Self::LDI => StatementKind::SingleOperandData,
             Self::SDI => StatementKind::SingleOperandData,
             Self::SID => StatementKind::SingleOperandData,
+
+            // NoOp instruction
+            Self::NOP => StatementKind::NoOp,
         }
     }
 }
@@ -232,6 +238,9 @@ impl Mnemonic {
             Self::LDI => "LDI",
             Self::SDI => "SDI",
             Self::SID => "SID",
+
+            // NoOp instruction
+            Self::NOP => "NOP",
         }
     }
 }
@@ -247,6 +256,7 @@ pub enum StatementKind {
     Org,
     DataDefinition,
     BranchOnIndicators,
+    NoOp,
     BranchOnRegisters,
     ShortValueImmediate,
     SingleOperandData,

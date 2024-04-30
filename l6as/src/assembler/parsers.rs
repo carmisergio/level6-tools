@@ -149,6 +149,7 @@ fn encapsulate_statement(
         StatementKind::SingleOperandMemonlyMasked => {
             encapsulate_single_operand_memonly_masked_statement(mnemo, args)
         }
+        StatementKind::NoOp => encapsulate_noop_statement(),
     }
 }
 
@@ -228,6 +229,9 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
         "LDI" => Ok(Mnemonic::LDI),
         "SDI" => Ok(Mnemonic::SDI),
         "SID" => Ok(Mnemonic::SID),
+
+        // NoOp instruction
+        "NOP" => Ok(Mnemonic::NOP),
         _ => Err(()),
     }
 }
@@ -586,6 +590,13 @@ fn match_single_operand_opcode(mnemo: &Mnemonic) -> SingleOperandOpCode {
         Mnemonic::SID => SingleOperandOpCode::SID,
         _ => panic!("invalid OpCode for SingleOperand"),
     }
+}
+
+fn encapsulate_noop_statement() -> Result<Statement, AssemblerErrorKind> {
+    Ok(Statement::BranchOnIndicators(
+        BranchOnIndicatorsOpCode::NOP,
+        BranchLocation::ShortDisplacement(AddressExpression::WordDisplacement(-1)),
+    ))
 }
 
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {

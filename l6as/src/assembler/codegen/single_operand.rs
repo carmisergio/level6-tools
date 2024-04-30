@@ -79,8 +79,6 @@ fn get_single_operand_op_value(op: &SingleOperandOpCode) -> u5 {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Add;
-
     use crate::assembler::statements::{
         AddressExpression, BRelativeAddress, BRelativeAddressMode, BaseRegister, DataRegister,
         ImmediateAddress, ImmediateAddressMode, IncDec, PRelativeAddress, Register,
