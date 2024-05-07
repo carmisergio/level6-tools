@@ -9,7 +9,8 @@ use crate::assembler::statements::{AddressExpression, BranchLocation, DataRegist
 use super::{
     branch_on_indicators::codegen_branch_on_indicators,
     branch_on_registers::codegen_branch_on_registers, data_definition::codegen_data_definition,
-    short_value_immediate::codegen_short_value_immediate, single_operand::codegen_single_operand,
+    generic::codegen_generic, short_value_immediate::codegen_short_value_immediate,
+    single_operand::codegen_single_operand,
 };
 
 /// Generate raw words for one statement
@@ -34,6 +35,7 @@ pub fn codegen(
         Statement::SingleOperand(op, addr_syl, mask) => {
             codegen_single_operand(op, addr_syl, mask, cur_addr, label_table)
         }
+        Statement::Generic(op) => codegen_generic(op),
     }
 }
 

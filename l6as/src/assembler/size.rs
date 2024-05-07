@@ -10,6 +10,7 @@ pub fn statement_size(statement: &Statement, _cur_addr: u64) -> u64 {
         Statement::BranchOnRegisters(_op, _reg, branchloc) => branch_inst_size(branchloc),
         Statement::ShortValueImmediate(_op, _reg, _value) => 1,
         Statement::SingleOperand(_op, addr_syl, mask) => single_operand_inst_size(addr_syl, mask),
+        Statement::Generic(_op) => 1,
     }
 }
 

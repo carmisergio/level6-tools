@@ -1,8 +1,8 @@
 use super::statements::{
     AddressExpression, AddressSyllable, BRelativeAddress, BRelativeAddressMode, BaseRegister,
     BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, DataDefinitionSize,
-    DataRegister, ImmediateAddress, ImmediateAddressMode, IncDec, Mnemonic, PRelativeAddress,
-    Register, ShortValueImmediateOpCode, SingleOperandOpCode, Statement,
+    DataRegister, GenericOpCode, ImmediateAddress, ImmediateAddressMode, IncDec, Mnemonic,
+    PRelativeAddress, Register, ShortValueImmediateOpCode, SingleOperandOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -149,7 +149,8 @@ fn encapsulate_statement(
         StatementKind::SingleOperandMemonlyMasked => {
             encapsulate_single_operand_memonly_masked_statement(mnemo, args)
         }
-        StatementKind::NoOp => encapsulate_noop_statement(),
+        StatementKind::NoOp => encapsulate_noop_statement(args),
+        StatementKind::Generic => encapsulate_generic_statement(mnemo, args),
     }
 }
 
@@ -232,6 +233,25 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
 
         // NoOp instruction
         "NOP" => Ok(Mnemonic::NOP),
+
+        // Generic instruction
+        "HLT" => Ok(Mnemonic::HLT),
+        "MCL" => Ok(Mnemonic::MCL),
+        "RTT" => Ok(Mnemonic::RTT),
+        "RTCN" => Ok(Mnemonic::RTCN),
+        "RTCF" => Ok(Mnemonic::RTCF),
+        "WDTN" => Ok(Mnemonic::WDTN),
+        "WDTF" => Ok(Mnemonic::WDTF),
+        "BRK" => Ok(Mnemonic::BRK),
+        "MMM" => Ok(Mnemonic::MMM),
+        "ASD" => Ok(Mnemonic::ASD),
+        "VLD" => Ok(Mnemonic::VLD),
+        "QOH" => Ok(Mnemonic::QOH),
+        "QOT" => Ok(Mnemonic::QOT),
+        "DQH" => Ok(Mnemonic::DQH),
+        "DQA" => Ok(Mnemonic::DQA),
+        "RSC" => Ok(Mnemonic::RSC),
+
         _ => Err(()),
     }
 }
@@ -592,11 +612,57 @@ fn match_single_operand_opcode(mnemo: &Mnemonic) -> SingleOperandOpCode {
     }
 }
 
-fn encapsulate_noop_statement() -> Result<Statement, AssemblerErrorKind> {
+fn encapsulate_noop_statement(args: &[String]) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 0 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            Mnemonic::NOP,
+            0,
+            args.len(),
+        ));
+    }
+
     Ok(Statement::BranchOnIndicators(
         BranchOnIndicatorsOpCode::NOP,
         BranchLocation::ShortDisplacement(AddressExpression::WordDisplacement(-1)),
     ))
+}
+
+fn encapsulate_generic_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 0 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            0,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match mnemo {
+        Mnemonic::HLT => GenericOpCode::HLT,
+        Mnemonic::MCL => GenericOpCode::MCL,
+        Mnemonic::RTT => GenericOpCode::RTT,
+        Mnemonic::RTCN => GenericOpCode::RTCN,
+        Mnemonic::RTCF => GenericOpCode::RTCF,
+        Mnemonic::WDTN => GenericOpCode::WDTN,
+        Mnemonic::WDTF => GenericOpCode::WDTF,
+        Mnemonic::BRK => GenericOpCode::BRK,
+        Mnemonic::MMM => GenericOpCode::MMM,
+        Mnemonic::ASD => GenericOpCode::ASD,
+        Mnemonic::VLD => GenericOpCode::VLD,
+        Mnemonic::QOH => GenericOpCode::QOH,
+        Mnemonic::QOT => GenericOpCode::QOT,
+        Mnemonic::DQH => GenericOpCode::DQH,
+        Mnemonic::DQA => GenericOpCode::DQA,
+        Mnemonic::RSC => GenericOpCode::RSC,
+        _ => panic!("invalid OpCode for GenericOpCode"),
+    };
+
+    Ok(Statement::Generic(op))
 }
 
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {

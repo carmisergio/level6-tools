@@ -77,6 +77,24 @@ pub enum Mnemonic {
 
     // NoOp instruction
     NOP,
+
+    // Generic instruction
+    HLT,
+    MCL,
+    RTT,
+    RTCN,
+    RTCF,
+    WDTN,
+    WDTF,
+    BRK,
+    MMM,
+    ASD,
+    VLD,
+    QOH,
+    QOT,
+    DQH,
+    DQA,
+    RSC,
 }
 
 impl Mnemonic {
@@ -159,6 +177,24 @@ impl Mnemonic {
 
             // NoOp instruction
             Self::NOP => StatementKind::NoOp,
+
+            // Generic instruction
+            Self::HLT => StatementKind::Generic,
+            Self::MCL => StatementKind::Generic,
+            Self::RTT => StatementKind::Generic,
+            Self::RTCN => StatementKind::Generic,
+            Self::RTCF => StatementKind::Generic,
+            Self::WDTN => StatementKind::Generic,
+            Self::WDTF => StatementKind::Generic,
+            Self::BRK => StatementKind::Generic,
+            Self::MMM => StatementKind::Generic,
+            Self::ASD => StatementKind::Generic,
+            Self::VLD => StatementKind::Generic,
+            Self::QOH => StatementKind::Generic,
+            Self::QOT => StatementKind::Generic,
+            Self::DQH => StatementKind::Generic,
+            Self::DQA => StatementKind::Generic,
+            Self::RSC => StatementKind::Generic,
         }
     }
 }
@@ -241,6 +277,24 @@ impl Mnemonic {
 
             // NoOp instruction
             Self::NOP => "NOP",
+
+            // Generic instruction
+            Self::HLT => "HLT",
+            Self::MCL => "MCL",
+            Self::RTT => "RTT",
+            Self::RTCN => "RTCN",
+            Self::RTCF => "RTCF",
+            Self::WDTN => "WDTN",
+            Self::WDTF => "WDTF",
+            Self::BRK => "BRK",
+            Self::MMM => "MMM",
+            Self::ASD => "ASD",
+            Self::VLD => "VLD",
+            Self::QOH => "QOH",
+            Self::QOT => "QOT",
+            Self::DQH => "DQH",
+            Self::DQA => "DQA",
+            Self::RSC => "RSC",
         }
     }
 }
@@ -264,6 +318,7 @@ pub enum StatementKind {
     SingleOperandMemonly,
     SingleOperandDataMasked,
     SingleOperandMemonlyMasked,
+    Generic,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -274,6 +329,7 @@ pub enum Statement {
     BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
     ShortValueImmediate(ShortValueImmediateOpCode, DataRegister, i128),
     SingleOperand(SingleOperandOpCode, AddressSyllable, Option<i128>),
+    Generic(GenericOpCode),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -358,6 +414,26 @@ pub enum SingleOperandOpCode {
     LDI,
     SDI,
     SID,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GenericOpCode {
+    HLT,
+    MCL,
+    RTT,
+    RTCN,
+    RTCF,
+    WDTN,
+    WDTF,
+    BRK,
+    MMM,
+    ASD,
+    VLD,
+    QOH,
+    QOT,
+    DQH,
+    DQA,
+    RSC,
 }
 
 #[derive(Debug, Clone, PartialEq)]
