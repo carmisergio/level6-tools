@@ -95,6 +95,35 @@ pub enum Mnemonic {
     DQH,
     DQA,
     RSC,
+
+    // Double Operand instructions
+    LDR,
+    STR,
+    SRM,
+    SWR,
+    CMR,
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    OR,
+    XOR,
+    AND,
+    LDH,
+    STH,
+    CMH,
+    ORH,
+    XOH,
+    ANH,
+    LLH,
+    MTM,
+    STM,
+    LDB,
+    STB,
+    CMB,
+    SWB,
+    LAB,
+    LNJ,
 }
 
 impl Mnemonic {
@@ -195,6 +224,35 @@ impl Mnemonic {
             Self::DQH => StatementKind::Generic,
             Self::DQA => StatementKind::Generic,
             Self::RSC => StatementKind::Generic,
+
+            // Double Operand instructions
+            Self::LDR => StatementKind::DoubleOperandData,
+            Self::STR => StatementKind::DoubleOperandData,
+            Self::SRM => StatementKind::DoubleOperandDataMasked,
+            Self::SWR => StatementKind::DoubleOperandData,
+            Self::CMR => StatementKind::DoubleOperandData,
+            Self::ADD => StatementKind::DoubleOperandData,
+            Self::SUB => StatementKind::DoubleOperandData,
+            Self::MUL => StatementKind::DoubleOperandData,
+            Self::DIV => StatementKind::DoubleOperandData,
+            Self::OR => StatementKind::DoubleOperandData,
+            Self::XOR => StatementKind::DoubleOperandData,
+            Self::AND => StatementKind::DoubleOperandData,
+            Self::LDH => StatementKind::DoubleOperandData,
+            Self::STH => StatementKind::DoubleOperandData,
+            Self::CMH => StatementKind::DoubleOperandData,
+            Self::ORH => StatementKind::DoubleOperandData,
+            Self::XOH => StatementKind::DoubleOperandData,
+            Self::ANH => StatementKind::DoubleOperandData,
+            Self::LLH => StatementKind::DoubleOperandData,
+            Self::MTM => StatementKind::DoubleOperandData,
+            Self::STM => StatementKind::DoubleOperandData,
+            Self::LDB => StatementKind::DoubleOperandData,
+            Self::STB => StatementKind::DoubleOperandBase,
+            Self::CMB => StatementKind::DoubleOperandBase,
+            Self::SWB => StatementKind::DoubleOperandBase,
+            Self::LAB => StatementKind::DoubleOperandNoreg,
+            Self::LNJ => StatementKind::DoubleOperandMemonly,
         }
     }
 }
@@ -295,6 +353,35 @@ impl Mnemonic {
             Self::DQH => "DQH",
             Self::DQA => "DQA",
             Self::RSC => "RSC",
+
+            // Double Operand instructions
+            Self::LDR => "LDR",
+            Self::STR => "STR",
+            Self::SRM => "SRM",
+            Self::SWR => "SWR",
+            Self::CMR => "CMR",
+            Self::ADD => "ADD",
+            Self::SUB => "SUB",
+            Self::MUL => "MUL",
+            Self::DIV => "DIV",
+            Self::OR => "OR",
+            Self::XOR => "XOR",
+            Self::AND => "AND",
+            Self::LDH => "LDH",
+            Self::STH => "STH",
+            Self::CMH => "CMH",
+            Self::ORH => "ORH",
+            Self::XOH => "XOH",
+            Self::ANH => "ANH",
+            Self::LLH => "LLH",
+            Self::MTM => "MTM",
+            Self::STM => "STM",
+            Self::LDB => "LDB",
+            Self::STB => "STB",
+            Self::CMB => "CMB",
+            Self::SWB => "SWB",
+            Self::LAB => "LAB",
+            Self::LNJ => "LNJ",
         }
     }
 }
@@ -319,6 +406,11 @@ pub enum StatementKind {
     SingleOperandDataMasked,
     SingleOperandMemonlyMasked,
     Generic,
+    DoubleOperandData,
+    DoubleOperandDataMasked,
+    DoubleOperandBase,
+    DoubleOperandNoreg,
+    DoubleOperandMemonly,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -329,6 +421,7 @@ pub enum Statement {
     BranchOnRegisters(BranchOnRegistersOpCode, DataRegister, BranchLocation),
     ShortValueImmediate(ShortValueImmediateOpCode, DataRegister, i128),
     SingleOperand(SingleOperandOpCode, AddressSyllable, Option<i128>),
+    DoubleOperand(DoubleOperandOpCode, Register, AddressSyllable, Option<i128>),
     Generic(GenericOpCode),
 }
 
@@ -434,6 +527,37 @@ pub enum GenericOpCode {
     DQH,
     DQA,
     RSC,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DoubleOperandOpCode {
+    LDR,
+    STR,
+    SRM,
+    SWR,
+    CMR,
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    OR,
+    XOR,
+    AND,
+    LDH,
+    STH,
+    CMH,
+    ORH,
+    XOH,
+    ANH,
+    LLH,
+    MTM,
+    STM,
+    LDB,
+    STB,
+    CMB,
+    SWB,
+    LAB,
+    LNJ,
 }
 
 #[derive(Debug, Clone, PartialEq)]

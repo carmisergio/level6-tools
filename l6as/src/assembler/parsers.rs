@@ -1,8 +1,9 @@
 use super::statements::{
     AddressExpression, AddressSyllable, BRelativeAddress, BRelativeAddressMode, BaseRegister,
     BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, DataDefinitionSize,
-    DataRegister, GenericOpCode, ImmediateAddress, ImmediateAddressMode, IncDec, Mnemonic,
-    PRelativeAddress, Register, ShortValueImmediateOpCode, SingleOperandOpCode, Statement,
+    DataRegister, DoubleOperandOpCode, GenericOpCode, ImmediateAddress, ImmediateAddressMode,
+    IncDec, Mnemonic, PRelativeAddress, Register, ShortValueImmediateOpCode, SingleOperandOpCode,
+    Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -151,6 +152,17 @@ fn encapsulate_statement(
         }
         StatementKind::NoOp => encapsulate_noop_statement(args),
         StatementKind::Generic => encapsulate_generic_statement(mnemo, args),
+        StatementKind::DoubleOperandData => encapsulate_double_operand_data_statement(mnemo, args),
+        StatementKind::DoubleOperandDataMasked => {
+            encapsulate_double_operand_data_masked_statement(mnemo, args)
+        }
+        StatementKind::DoubleOperandBase => encapsulate_double_operand_base_statement(mnemo, args),
+        StatementKind::DoubleOperandNoreg => {
+            encapsulate_double_operand_noreg_statement(mnemo, args)
+        }
+        StatementKind::DoubleOperandMemonly => {
+            encapsulate_double_operand_memonly_statement(mnemo, args)
+        }
     }
 }
 
@@ -252,6 +264,34 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
         "DQA" => Ok(Mnemonic::DQA),
         "RSC" => Ok(Mnemonic::RSC),
 
+        // Double Operand instructions
+        "LDR" => Ok(Mnemonic::LDR),
+        "STR" => Ok(Mnemonic::STR),
+        "SRM" => Ok(Mnemonic::SRM),
+        "SWR" => Ok(Mnemonic::SWR),
+        "CMR" => Ok(Mnemonic::CMR),
+        "ADD" => Ok(Mnemonic::ADD),
+        "SUB" => Ok(Mnemonic::SUB),
+        "MUL" => Ok(Mnemonic::MUL),
+        "DIV" => Ok(Mnemonic::DIV),
+        "OR" => Ok(Mnemonic::OR),
+        "XOR" => Ok(Mnemonic::XOR),
+        "AND" => Ok(Mnemonic::AND),
+        "LDH" => Ok(Mnemonic::LDH),
+        "STH" => Ok(Mnemonic::STH),
+        "CMH" => Ok(Mnemonic::CMH),
+        "ORH" => Ok(Mnemonic::ORH),
+        "XOH" => Ok(Mnemonic::XOH),
+        "ANH" => Ok(Mnemonic::ANH),
+        "LLH" => Ok(Mnemonic::LLH),
+        "MTM" => Ok(Mnemonic::MTM),
+        "STM" => Ok(Mnemonic::STM),
+        "LDB" => Ok(Mnemonic::LDB),
+        "STB" => Ok(Mnemonic::STB),
+        "CMB" => Ok(Mnemonic::CMB),
+        "SWB" => Ok(Mnemonic::SWB),
+        "LAB" => Ok(Mnemonic::LAB),
+        "LNJ" => Ok(Mnemonic::LNJ),
         _ => Err(()),
     }
 }
@@ -665,6 +705,239 @@ fn encapsulate_generic_statement(
     Ok(Statement::Generic(op))
 }
 
+fn encapsulate_double_operand_data_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match_double_operand_opcode(&mnemo);
+
+    // Parse register
+    let reg = parse_data_register_arg(&args[0])?;
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[1])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &addr_syl {
+        if let Register::Base(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    Ok(Statement::DoubleOperand(
+        op,
+        Register::Data(reg),
+        addr_syl,
+        None,
+    ))
+}
+
+fn encapsulate_double_operand_data_masked_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 && args.len() != 3 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Check if mask needs to be parsed
+    let mask = if args.len() == 3 {
+        parse_maskword_arg(&args[2])?
+    } else {
+        0
+    };
+
+    // Get op code
+    let op = match_double_operand_opcode(&mnemo);
+
+    // Parse register
+    let reg = parse_data_register_arg(&args[0])?;
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[1])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &addr_syl {
+        if let Register::Base(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    Ok(Statement::DoubleOperand(
+        op,
+        Register::Data(reg),
+        addr_syl,
+        Some(mask),
+    ))
+}
+
+fn encapsulate_double_operand_base_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match_double_operand_opcode(&mnemo);
+
+    // Parse register
+    let reg = parse_base_register_arg(&args[0])?;
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[1])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &addr_syl {
+        if let Register::Data(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    Ok(Statement::DoubleOperand(
+        op,
+        Register::Base(reg),
+        addr_syl,
+        None,
+    ))
+}
+
+fn encapsulate_double_operand_noreg_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match_double_operand_opcode(&mnemo);
+
+    // Parse register
+    let reg = parse_base_register_arg(&args[0])?;
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[1])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(_reg) = &addr_syl {
+        return Err(AssemblerErrorKind::RegisterAddressingInvalid(mnemo));
+    }
+
+    Ok(Statement::DoubleOperand(
+        op,
+        Register::Base(reg),
+        addr_syl,
+        None,
+    ))
+}
+
+fn encapsulate_double_operand_memonly_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match_double_operand_opcode(&mnemo);
+
+    // Parse register
+    let reg = parse_base_register_arg(&args[0])?;
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[1])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(_reg) = &addr_syl {
+        return Err(AssemblerErrorKind::RegisterAddressingInvalid(mnemo));
+    }
+    if let AddressSyllable::ImmediateAddressing(_val) = &addr_syl {
+        return Err(AssemblerErrorKind::ImmediateAddressingInvalid(mnemo));
+    }
+
+    Ok(Statement::DoubleOperand(
+        op,
+        Register::Base(reg),
+        addr_syl,
+        None,
+    ))
+}
+
+fn match_double_operand_opcode(mnemo: &Mnemonic) -> DoubleOperandOpCode {
+    match mnemo {
+        Mnemonic::LDR => DoubleOperandOpCode::LDR,
+        Mnemonic::STR => DoubleOperandOpCode::STR,
+        Mnemonic::SRM => DoubleOperandOpCode::SRM,
+        Mnemonic::SWR => DoubleOperandOpCode::SWR,
+        Mnemonic::CMR => DoubleOperandOpCode::CMR,
+        Mnemonic::ADD => DoubleOperandOpCode::ADD,
+        Mnemonic::SUB => DoubleOperandOpCode::SUB,
+        Mnemonic::MUL => DoubleOperandOpCode::MUL,
+        Mnemonic::DIV => DoubleOperandOpCode::DIV,
+        Mnemonic::OR => DoubleOperandOpCode::OR,
+        Mnemonic::XOR => DoubleOperandOpCode::XOR,
+        Mnemonic::AND => DoubleOperandOpCode::AND,
+        Mnemonic::LDH => DoubleOperandOpCode::LDH,
+        Mnemonic::STH => DoubleOperandOpCode::STH,
+        Mnemonic::CMH => DoubleOperandOpCode::CMH,
+        Mnemonic::ORH => DoubleOperandOpCode::ORH,
+        Mnemonic::XOH => DoubleOperandOpCode::XOH,
+        Mnemonic::ANH => DoubleOperandOpCode::ANH,
+        Mnemonic::LLH => DoubleOperandOpCode::LLH,
+        Mnemonic::MTM => DoubleOperandOpCode::MTM,
+        Mnemonic::STM => DoubleOperandOpCode::STM,
+        Mnemonic::LDB => DoubleOperandOpCode::LDB,
+        Mnemonic::STB => DoubleOperandOpCode::STB,
+        Mnemonic::CMB => DoubleOperandOpCode::CMB,
+        Mnemonic::SWB => DoubleOperandOpCode::SWB,
+        Mnemonic::LAB => DoubleOperandOpCode::LAB,
+        Mnemonic::LNJ => DoubleOperandOpCode::LNJ,
+        _ => panic!("invalid OpCode for DoubleOperand"),
+    }
+}
+
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {
     // Parse address
     let (input, address) = match parse_hex_u64(input) {
@@ -727,6 +1000,23 @@ fn parse_data_register_arg(input: &str) -> Result<DataRegister, AssemblerErrorKi
     let (input, branchloc) = match preceded(tag("$"), parse_data_register)(input) {
         Ok(address) => address,
         Err(_) => return Err(AssemblerErrorKind::InvalidDataRegister(input.to_owned())),
+    };
+
+    // Check for extra characters
+    if input.len() > 0 {
+        return Err(AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(
+            input.to_owned(),
+        ));
+    }
+
+    Ok(branchloc)
+}
+
+fn parse_base_register_arg(input: &str) -> Result<BaseRegister, AssemblerErrorKind> {
+    // Parse address
+    let (input, branchloc) = match preceded(tag("$"), parse_base_register)(input) {
+        Ok(address) => address,
+        Err(_) => return Err(AssemblerErrorKind::InvalidBaseRegister(input.to_owned())),
     };
 
     // Check for extra characters

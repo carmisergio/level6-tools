@@ -75,7 +75,7 @@ fn get_base_register_value_indexed(reg: &BaseRegister) -> Result<u3, AssemblerEr
         BaseRegister::B1 => u3!(1),
         BaseRegister::B2 => u3!(2),
         BaseRegister::B3 => u3!(3),
-        _ => return Err(AssemblerErrorKind::InvalidBaseRegister(reg.clone())),
+        _ => return Err(AssemblerErrorKind::InvalidBaseRegisterAddrSyl(reg.clone())),
     })
 }
 

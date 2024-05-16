@@ -11,6 +11,9 @@ pub fn statement_size(statement: &Statement, _cur_addr: u64) -> u64 {
         Statement::ShortValueImmediate(_op, _reg, _value) => 1,
         Statement::SingleOperand(_op, addr_syl, mask) => single_operand_inst_size(addr_syl, mask),
         Statement::Generic(_op) => 1,
+        Statement::DoubleOperand(_op, _reg, addr_syl, mask) => {
+            double_operand_inst_size(addr_syl, mask)
+        }
     }
 }
 
@@ -27,6 +30,11 @@ pub fn data_definition_dir_size(size: &DataDefinitionSize, chunks: &Vec<i128>) -
 
 /// Computes the size of a Single Operand instruction
 pub fn single_operand_inst_size(addr_syl: &AddressSyllable, mask: &Option<i128>) -> u64 {
+    1 + address_syl_extra_words(addr_syl) + mask_extra_words(mask)
+}
+
+/// Computes the size of a Double Operand instruction
+pub fn double_operand_inst_size(addr_syl: &AddressSyllable, mask: &Option<i128>) -> u64 {
     1 + address_syl_extra_words(addr_syl) + mask_extra_words(mask)
 }
 

@@ -106,11 +106,13 @@ pub enum AssemblerErrorKind {
     UnexpectedCharactersAtEndOfArgument(String),
     InvalidBranchLocation(String),
     InvalidDataRegister(String),
+    InvalidBaseRegister(String),
     InvalidImmediateValue(String),
     InvalidDataDefinitionChunk(String),
     InvalidAddressSyllable(String),
     WrongRegisterType(String, Mnemonic),
     RegisterAddressingInvalid(Mnemonic),
+    ImmediateAddressingInvalid(Mnemonic),
     InvalidMaskWord(String),
 
     // Code Generation
@@ -126,7 +128,7 @@ pub enum AssemblerErrorKind {
     InvalidIndexRegister(DataRegister),
     ImmediateAddressOutOfRange(u64),
     DisplacementOutOfRange(i128),
-    InvalidBaseRegister(BaseRegister),
+    InvalidBaseRegisterAddrSyl(BaseRegister),
     MaskWordOutOfRange(i128),
 }
 
@@ -166,6 +168,9 @@ impl AssemblerError {
             AssemblerErrorKind::InvalidDataRegister(arg) => {
                 format!("invalid data register: \"{}\"", arg)
             }
+            AssemblerErrorKind::InvalidBaseRegister(arg) => {
+                format!("invalid register: \"{}\"", arg)
+            }
             AssemblerErrorKind::InvalidImmediateValue(arg) => {
                 format!("invalid immediate value: \"{}\"", arg)
             }
@@ -180,6 +185,9 @@ impl AssemblerError {
             }
             AssemblerErrorKind::RegisterAddressingInvalid(mnemo) => {
                 format!("register addressing invalid for {}", mnemo)
+            }
+            AssemblerErrorKind::ImmediateAddressingInvalid(mnemo) => {
+                format!("immediate addressing invalid for {}", mnemo)
             }
             AssemblerErrorKind::InvalidMaskWord(arg) => {
                 format!("invalid mask word: {}", arg)
@@ -226,7 +234,7 @@ impl AssemblerError {
             AssemblerErrorKind::DisplacementOutOfRange(disp) => {
                 format!("displacement out of range: {}", disp)
             }
-            AssemblerErrorKind::InvalidBaseRegister(reg) => {
+            AssemblerErrorKind::InvalidBaseRegisterAddrSyl(reg) => {
                 format!(
                     "invalid base register: {}",
                     get_base_register_display_value(reg)
