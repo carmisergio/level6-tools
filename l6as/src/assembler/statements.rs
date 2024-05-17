@@ -245,8 +245,8 @@ impl Mnemonic {
             Self::XOH => StatementKind::DoubleOperandData,
             Self::ANH => StatementKind::DoubleOperandData,
             Self::LLH => StatementKind::DoubleOperandData,
-            Self::MTM => StatementKind::DoubleOperandData,
-            Self::STM => StatementKind::DoubleOperandData,
+            Self::MTM => StatementKind::DoubleOperandMode,
+            Self::STM => StatementKind::DoubleOperandMode,
             Self::LDB => StatementKind::DoubleOperandData,
             Self::STB => StatementKind::DoubleOperandBase,
             Self::CMB => StatementKind::DoubleOperandBase,
@@ -411,6 +411,7 @@ pub enum StatementKind {
     DoubleOperandBase,
     DoubleOperandNoreg,
     DoubleOperandMemonly,
+    DoubleOperandMode,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -587,6 +588,7 @@ pub enum AddressSyllable {
 pub enum Register {
     Data(DataRegister),
     Base(BaseRegister),
+    ModeControl(ModeControlRegister),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -609,6 +611,17 @@ pub enum BaseRegister {
     B5,
     B6,
     B7,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ModeControlRegister {
+    M1,
+    M2,
+    M3,
+    M4,
+    M5,
+    M6,
+    M7,
 }
 
 #[derive(Debug, Clone, PartialEq)]

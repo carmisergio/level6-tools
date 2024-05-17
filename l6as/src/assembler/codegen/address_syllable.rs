@@ -7,7 +7,9 @@ use crate::{
 };
 use std::collections::HashMap;
 
-use super::common::{get_data_register_value, resolve_address_expression};
+use super::common::{
+    get_base_register_value, get_generic_register_value, resolve_address_expression,
+};
 
 use bit_struct::*;
 
@@ -49,25 +51,6 @@ fn encode_addr_syl_register_addressing(
 ) -> Result<(AddressSyllableField, Vec<u16>), AssemblerErrorKind> {
     let field = AddressSyllableField::new(u3!(5), u1!(0), get_generic_register_value(reg));
     Ok((field, vec![]))
-}
-
-fn get_generic_register_value(reg: &Register) -> u3 {
-    match reg {
-        Register::Base(reg) => get_base_register_value(&reg),
-        Register::Data(reg) => get_data_register_value(&reg),
-    }
-}
-
-fn get_base_register_value(reg: &BaseRegister) -> u3 {
-    match reg {
-        BaseRegister::B1 => u3!(1),
-        BaseRegister::B2 => u3!(2),
-        BaseRegister::B3 => u3!(3),
-        BaseRegister::B4 => u3!(4),
-        BaseRegister::B5 => u3!(5),
-        BaseRegister::B6 => u3!(6),
-        BaseRegister::B7 => u3!(7),
-    }
 }
 
 fn get_base_register_value_indexed(reg: &BaseRegister) -> Result<u3, AssemblerErrorKind> {

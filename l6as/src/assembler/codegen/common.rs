@@ -1,16 +1,18 @@
 use std::collections::HashMap;
 
-use crate::logging::AssemblerErrorKind;
+use crate::{assembler::statements::ModeControlRegister, logging::AssemblerErrorKind};
 
 use bit_struct::*;
 
-use crate::assembler::statements::{AddressExpression, BranchLocation, DataRegister, Statement};
+use crate::assembler::statements::{
+    AddressExpression, BaseRegister, BranchLocation, DataRegister, Register, Statement,
+};
 
 use super::{
     branch_on_indicators::codegen_branch_on_indicators,
     branch_on_registers::codegen_branch_on_registers, data_definition::codegen_data_definition,
-    generic::codegen_generic, short_value_immediate::codegen_short_value_immediate,
-    single_operand::codegen_single_operand,
+    double_operand::codegen_double_operand, generic::codegen_generic,
+    short_value_immediate::codegen_short_value_immediate, single_operand::codegen_single_operand,
 };
 
 /// Generate raw words for one statement
@@ -36,6 +38,9 @@ pub fn codegen(
             codegen_single_operand(op, addr_syl, mask, cur_addr, label_table)
         }
         Statement::Generic(op) => codegen_generic(op),
+        Statement::DoubleOperand(op, reg, addr_syl, mask) => {
+            codegen_double_operand(op, reg, addr_syl, mask, cur_addr, label_table)
+        }
     }
 }
 
@@ -176,6 +181,38 @@ pub fn get_maskword_value(mask: i128) -> Result<u16, AssemblerErrorKind> {
     match TryInto::<u16>::try_into(mask) {
         Ok(val) => Ok(val),
         Err(_) => Err(AssemblerErrorKind::MaskWordOutOfRange(mask)),
+    }
+}
+
+pub fn get_generic_register_value(reg: &Register) -> u3 {
+    match reg {
+        Register::Base(reg) => get_base_register_value(&reg),
+        Register::Data(reg) => get_data_register_value(&reg),
+        Register::ModeControl(reg) => get_mode_control_register_value(&reg),
+    }
+}
+
+pub fn get_base_register_value(reg: &BaseRegister) -> u3 {
+    match reg {
+        BaseRegister::B1 => u3!(1),
+        BaseRegister::B2 => u3!(2),
+        BaseRegister::B3 => u3!(3),
+        BaseRegister::B4 => u3!(4),
+        BaseRegister::B5 => u3!(5),
+        BaseRegister::B6 => u3!(6),
+        BaseRegister::B7 => u3!(7),
+    }
+}
+
+pub fn get_mode_control_register_value(reg: &ModeControlRegister) -> u3 {
+    match reg {
+        ModeControlRegister::M1 => u3!(1),
+        ModeControlRegister::M2 => u3!(2),
+        ModeControlRegister::M3 => u3!(3),
+        ModeControlRegister::M4 => u3!(4),
+        ModeControlRegister::M5 => u3!(5),
+        ModeControlRegister::M6 => u3!(6),
+        ModeControlRegister::M7 => u3!(7),
     }
 }
 

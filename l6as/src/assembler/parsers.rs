@@ -2,8 +2,8 @@ use super::statements::{
     AddressExpression, AddressSyllable, BRelativeAddress, BRelativeAddressMode, BaseRegister,
     BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, DataDefinitionSize,
     DataRegister, DoubleOperandOpCode, GenericOpCode, ImmediateAddress, ImmediateAddressMode,
-    IncDec, Mnemonic, PRelativeAddress, Register, ShortValueImmediateOpCode, SingleOperandOpCode,
-    Statement,
+    IncDec, Mnemonic, ModeControlRegister, PRelativeAddress, Register, ShortValueImmediateOpCode,
+    SingleOperandOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -163,6 +163,7 @@ fn encapsulate_statement(
         StatementKind::DoubleOperandMemonly => {
             encapsulate_double_operand_memonly_statement(mnemo, args)
         }
+        StatementKind::DoubleOperandMode => encapsulate_double_operand_mode_statement(mnemo, args),
     }
 }
 
@@ -832,6 +833,46 @@ fn encapsulate_double_operand_base_statement(
     ))
 }
 
+fn encapsulate_double_operand_mode_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match_double_operand_opcode(&mnemo);
+
+    // Parse register
+    let reg = parse_mode_control_register_arg(&args[0])?;
+
+    // Parse address syllable
+    let addr_syl = parse_address_syllable_arg(&args[1])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &addr_syl {
+        if let Register::Data(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    Ok(Statement::DoubleOperand(
+        op,
+        Register::ModeControl(reg),
+        addr_syl,
+        None,
+    ))
+}
+
 fn encapsulate_double_operand_noreg_statement(
     mnemo: Mnemonic,
     args: &[String],
@@ -997,7 +1038,7 @@ fn parse_branch_location_short_relative(input: &str) -> IResult<&str, BranchLoca
 
 fn parse_data_register_arg(input: &str) -> Result<DataRegister, AssemblerErrorKind> {
     // Parse address
-    let (input, branchloc) = match preceded(tag("$"), parse_data_register)(input) {
+    let (input, reg) = match preceded(tag("$"), parse_data_register)(input) {
         Ok(address) => address,
         Err(_) => return Err(AssemblerErrorKind::InvalidDataRegister(input.to_owned())),
     };
@@ -1009,12 +1050,12 @@ fn parse_data_register_arg(input: &str) -> Result<DataRegister, AssemblerErrorKi
         ));
     }
 
-    Ok(branchloc)
+    Ok(reg)
 }
 
 fn parse_base_register_arg(input: &str) -> Result<BaseRegister, AssemblerErrorKind> {
     // Parse address
-    let (input, branchloc) = match preceded(tag("$"), parse_base_register)(input) {
+    let (input, reg) = match preceded(tag("$"), parse_base_register)(input) {
         Ok(address) => address,
         Err(_) => return Err(AssemblerErrorKind::InvalidBaseRegister(input.to_owned())),
     };
@@ -1026,7 +1067,28 @@ fn parse_base_register_arg(input: &str) -> Result<BaseRegister, AssemblerErrorKi
         ));
     }
 
-    Ok(branchloc)
+    Ok(reg)
+}
+
+fn parse_mode_control_register_arg(input: &str) -> Result<ModeControlRegister, AssemblerErrorKind> {
+    // Parse address
+    let (input, reg) = match preceded(tag("$"), parse_mode_control_register)(input) {
+        Ok(address) => address,
+        Err(_) => {
+            return Err(AssemblerErrorKind::InvalidModeControlRegister(
+                input.to_owned(),
+            ))
+        }
+    };
+
+    // Check for extra characters
+    if input.len() > 0 {
+        return Err(AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(
+            input.to_owned(),
+        ));
+    }
+
+    Ok(reg)
 }
 
 fn parse_immediate_value_arg(input: &str) -> Result<i128, AssemblerErrorKind> {
@@ -1151,6 +1213,18 @@ fn parse_base_register(input: &str) -> IResult<&str, BaseRegister> {
         value(BaseRegister::B5, tag_no_case("B5")),
         value(BaseRegister::B6, tag_no_case("B6")),
         value(BaseRegister::B7, tag_no_case("B7")),
+    ))(input)
+}
+
+fn parse_mode_control_register(input: &str) -> IResult<&str, ModeControlRegister> {
+    alt((
+        value(ModeControlRegister::M1, tag_no_case("M1")),
+        value(ModeControlRegister::M2, tag_no_case("M2")),
+        value(ModeControlRegister::M3, tag_no_case("M3")),
+        value(ModeControlRegister::M4, tag_no_case("M4")),
+        value(ModeControlRegister::M5, tag_no_case("M5")),
+        value(ModeControlRegister::M6, tag_no_case("M6")),
+        value(ModeControlRegister::M7, tag_no_case("M7")),
     ))(input)
 }
 

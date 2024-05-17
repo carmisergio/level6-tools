@@ -107,6 +107,7 @@ pub enum AssemblerErrorKind {
     InvalidBranchLocation(String),
     InvalidDataRegister(String),
     InvalidBaseRegister(String),
+    InvalidModeControlRegister(String),
     InvalidImmediateValue(String),
     InvalidDataDefinitionChunk(String),
     InvalidAddressSyllable(String),
@@ -170,6 +171,9 @@ impl AssemblerError {
             }
             AssemblerErrorKind::InvalidBaseRegister(arg) => {
                 format!("invalid register: \"{}\"", arg)
+            }
+            AssemblerErrorKind::InvalidModeControlRegister(arg) => {
+                format!("invalid base register: \"{}\"", arg)
             }
             AssemblerErrorKind::InvalidImmediateValue(arg) => {
                 format!("invalid immediate value: \"{}\"", arg)
