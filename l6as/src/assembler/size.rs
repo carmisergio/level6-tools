@@ -14,6 +14,8 @@ pub fn statement_size(statement: &Statement, _cur_addr: u64) -> u64 {
         Statement::DoubleOperand(_op, _reg, addr_syl, mask) => {
             double_operand_inst_size(addr_syl, mask)
         }
+        Statement::ShiftShort(_op, _reg, _val) => 1,
+        Statement::ShiftLong(_op, _reg, _val) => 1,
     }
 }
 

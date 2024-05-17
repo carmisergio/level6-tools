@@ -124,6 +124,22 @@ pub enum Mnemonic {
     SWB,
     LAB,
     LNJ,
+
+    // Shift Short instructions
+    SOL,
+    SCL,
+    SAL,
+    DCL,
+    SOR,
+    SCR,
+    SAR,
+    DCR,
+
+    // Shift Long instructions
+    DOL,
+    DAL,
+    DOR,
+    DAR,
 }
 
 impl Mnemonic {
@@ -253,6 +269,22 @@ impl Mnemonic {
             Self::SWB => StatementKind::DoubleOperandBase,
             Self::LAB => StatementKind::DoubleOperandNoreg,
             Self::LNJ => StatementKind::DoubleOperandMemonly,
+
+            // Shift Short instructions
+            Self::SOL => StatementKind::ShiftShort,
+            Self::SCL => StatementKind::ShiftShort,
+            Self::SAL => StatementKind::ShiftShort,
+            Self::DCL => StatementKind::ShiftShort,
+            Self::SOR => StatementKind::ShiftShort,
+            Self::SCR => StatementKind::ShiftShort,
+            Self::SAR => StatementKind::ShiftShort,
+            Self::DCR => StatementKind::ShiftShort,
+
+            // Shift Long instructions
+            Self::DOL => StatementKind::ShiftLong,
+            Self::DAL => StatementKind::ShiftLong,
+            Self::DOR => StatementKind::ShiftLong,
+            Self::DAR => StatementKind::ShiftLong,
         }
     }
 }
@@ -382,6 +414,22 @@ impl Mnemonic {
             Self::SWB => "SWB",
             Self::LAB => "LAB",
             Self::LNJ => "LNJ",
+
+            // Shift Short instructions
+            Self::SOL => "SOL",
+            Self::SCL => "SCL",
+            Self::SAL => "SAL",
+            Self::DCL => "DCL",
+            Self::SOR => "SOR",
+            Self::SCR => "SCR",
+            Self::SAR => "SAR",
+            Self::DCR => "DCR",
+
+            // Shift Long instructions
+            Self::DOL => "DOL",
+            Self::DAL => "DAL",
+            Self::DOR => "DOR",
+            Self::DAR => "DAR",
         }
     }
 }
@@ -412,6 +460,8 @@ pub enum StatementKind {
     DoubleOperandNoreg,
     DoubleOperandMemonly,
     DoubleOperandMode,
+    ShiftShort,
+    ShiftLong,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -424,6 +474,8 @@ pub enum Statement {
     SingleOperand(SingleOperandOpCode, AddressSyllable, Option<i128>),
     DoubleOperand(DoubleOperandOpCode, Register, AddressSyllable, Option<i128>),
     Generic(GenericOpCode),
+    ShiftShort(ShiftShortOpCode, DataRegister, u64),
+    ShiftLong(ShiftLongOpCode, DataRegister, u64),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -559,6 +611,26 @@ pub enum DoubleOperandOpCode {
     SWB,
     LAB,
     LNJ,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ShiftShortOpCode {
+    SOL,
+    SCL,
+    SAL,
+    DCL,
+    SOR,
+    SCR,
+    SAR,
+    DCR,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ShiftLongOpCode {
+    DOL,
+    DAL,
+    DOR,
+    DAR,
 }
 
 #[derive(Debug, Clone, PartialEq)]

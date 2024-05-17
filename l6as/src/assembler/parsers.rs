@@ -2,8 +2,8 @@ use super::statements::{
     AddressExpression, AddressSyllable, BRelativeAddress, BRelativeAddressMode, BaseRegister,
     BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, DataDefinitionSize,
     DataRegister, DoubleOperandOpCode, GenericOpCode, ImmediateAddress, ImmediateAddressMode,
-    IncDec, Mnemonic, ModeControlRegister, PRelativeAddress, Register, ShortValueImmediateOpCode,
-    SingleOperandOpCode, Statement,
+    IncDec, Mnemonic, ModeControlRegister, PRelativeAddress, Register, ShiftLongOpCode,
+    ShiftShortOpCode, ShortValueImmediateOpCode, SingleOperandOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -164,6 +164,8 @@ fn encapsulate_statement(
             encapsulate_double_operand_memonly_statement(mnemo, args)
         }
         StatementKind::DoubleOperandMode => encapsulate_double_operand_mode_statement(mnemo, args),
+        StatementKind::ShiftShort => encapsulate_shift_short_statement(mnemo, args),
+        StatementKind::ShiftLong => encapsulate_shift_long_statement(mnemo, args),
     }
 }
 
@@ -293,6 +295,22 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
         "SWB" => Ok(Mnemonic::SWB),
         "LAB" => Ok(Mnemonic::LAB),
         "LNJ" => Ok(Mnemonic::LNJ),
+
+        // Shift Short instructions
+        "SOL" => Ok(Mnemonic::SOL),
+        "SCL" => Ok(Mnemonic::SCL),
+        "SAL" => Ok(Mnemonic::SAL),
+        "DCL" => Ok(Mnemonic::DCL),
+        "SOR" => Ok(Mnemonic::SOR),
+        "SCR" => Ok(Mnemonic::SCR),
+        "SAR" => Ok(Mnemonic::SAR),
+        "DCR" => Ok(Mnemonic::DCR),
+
+        // Shift Long instructions
+        "DOL" => Ok(Mnemonic::DOL),
+        "DAL" => Ok(Mnemonic::DAL),
+        "DOR" => Ok(Mnemonic::DOR),
+        "DAR" => Ok(Mnemonic::DAR),
         _ => Err(()),
     }
 }
@@ -979,6 +997,72 @@ fn match_double_operand_opcode(mnemo: &Mnemonic) -> DoubleOperandOpCode {
     }
 }
 
+fn encapsulate_shift_short_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match mnemo {
+        Mnemonic::SOL => ShiftShortOpCode::SOL,
+        Mnemonic::SCL => ShiftShortOpCode::SCL,
+        Mnemonic::SAL => ShiftShortOpCode::SAL,
+        Mnemonic::DCL => ShiftShortOpCode::DCL,
+        Mnemonic::SOR => ShiftShortOpCode::SOR,
+        Mnemonic::SCR => ShiftShortOpCode::SCR,
+        Mnemonic::SAR => ShiftShortOpCode::SAR,
+        Mnemonic::DCR => ShiftShortOpCode::DCR,
+        _ => panic!("invalid OpCode for ShiftShort"),
+    };
+
+    // Parse data register
+    let reg = parse_data_register_arg(&args[0])?;
+
+    // Parse shift value
+    let val = parse_shift_value_arg(&args[1])?;
+
+    Ok(Statement::ShiftShort(op, reg, val))
+}
+
+fn encapsulate_shift_long_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match mnemo {
+        Mnemonic::DOL => ShiftLongOpCode::DOL,
+        Mnemonic::DAL => ShiftLongOpCode::DAL,
+        Mnemonic::DOR => ShiftLongOpCode::DOR,
+        Mnemonic::DAR => ShiftLongOpCode::DAR,
+        _ => panic!("invalid OpCode for ShiftLong"),
+    };
+
+    // Parse data register
+    let reg = parse_data_register_arg(&args[0])?;
+
+    // Parse shift value
+    let val = parse_shift_value_arg(&args[1])?;
+
+    Ok(Statement::ShiftLong(op, reg, val))
+}
+
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {
     // Parse address
     let (input, address) = match parse_hex_u64(input) {
@@ -1096,6 +1180,23 @@ fn parse_immediate_value_arg(input: &str) -> Result<i128, AssemblerErrorKind> {
     let (input, value) = match parse_immediate_value(input) {
         Ok(address) => address,
         Err(_) => return Err(AssemblerErrorKind::InvalidImmediateValue(input.to_owned())),
+    };
+
+    // Check for extra characters
+    if input.len() > 0 {
+        return Err(AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(
+            input.to_owned(),
+        ));
+    }
+
+    Ok(value)
+}
+
+fn parse_shift_value_arg(input: &str) -> Result<u64, AssemblerErrorKind> {
+    // Parse address
+    let (input, value) = match parse_dec_u64(input) {
+        Ok(address) => address,
+        Err(_) => return Err(AssemblerErrorKind::InvalidShiftDistance(input.to_owned())),
     };
 
     // Check for extra characters

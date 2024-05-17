@@ -115,6 +115,7 @@ pub enum AssemblerErrorKind {
     RegisterAddressingInvalid(Mnemonic),
     ImmediateAddressingInvalid(Mnemonic),
     InvalidMaskWord(String),
+    InvalidShiftDistance(String),
 
     // Code Generation
     BranchAddressOutOfRange(u64),
@@ -131,6 +132,7 @@ pub enum AssemblerErrorKind {
     DisplacementOutOfRange(i128),
     InvalidBaseRegisterAddrSyl(BaseRegister),
     MaskWordOutOfRange(i128),
+    ShiftDistanceOutOfRange(u64),
 }
 
 #[derive(Debug)]
@@ -173,7 +175,7 @@ impl AssemblerError {
                 format!("invalid register: \"{}\"", arg)
             }
             AssemblerErrorKind::InvalidModeControlRegister(arg) => {
-                format!("invalid base register: \"{}\"", arg)
+                format!("invalid mode control register: \"{}\"", arg)
             }
             AssemblerErrorKind::InvalidImmediateValue(arg) => {
                 format!("invalid immediate value: \"{}\"", arg)
@@ -195,6 +197,9 @@ impl AssemblerError {
             }
             AssemblerErrorKind::InvalidMaskWord(arg) => {
                 format!("invalid mask word: {}", arg)
+            }
+            AssemblerErrorKind::InvalidShiftDistance(arg) => {
+                format!("invalid shift distance: {}", arg)
             }
             AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(arg) => {
                 format!("unexpected characters at end of argument: \"{}\"", arg)
@@ -246,6 +251,9 @@ impl AssemblerError {
             }
             AssemblerErrorKind::MaskWordOutOfRange(mask) => {
                 format!("mask word out of range: ({:#X}) {}", mask, mask)
+            }
+            AssemblerErrorKind::ShiftDistanceOutOfRange(dist) => {
+                format!("shift distance out of range: {}", dist)
             }
         }
     }

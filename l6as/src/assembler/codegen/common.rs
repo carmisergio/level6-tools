@@ -10,9 +10,13 @@ use crate::assembler::statements::{
 
 use super::{
     branch_on_indicators::codegen_branch_on_indicators,
-    branch_on_registers::codegen_branch_on_registers, data_definition::codegen_data_definition,
-    double_operand::codegen_double_operand, generic::codegen_generic,
-    short_value_immediate::codegen_short_value_immediate, single_operand::codegen_single_operand,
+    branch_on_registers::codegen_branch_on_registers,
+    data_definition::codegen_data_definition,
+    double_operand::codegen_double_operand,
+    generic::codegen_generic,
+    shift::{codegen_shift_long, codegen_shift_short},
+    short_value_immediate::codegen_short_value_immediate,
+    single_operand::codegen_single_operand,
 };
 
 /// Generate raw words for one statement
@@ -41,6 +45,8 @@ pub fn codegen(
         Statement::DoubleOperand(op, reg, addr_syl, mask) => {
             codegen_double_operand(op, reg, addr_syl, mask, cur_addr, label_table)
         }
+        Statement::ShiftShort(op, reg, dist) => codegen_shift_short(op, reg, *dist),
+        Statement::ShiftLong(op, reg, dist) => codegen_shift_long(op, reg, *dist),
     }
 }
 
