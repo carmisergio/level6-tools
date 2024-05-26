@@ -14,6 +14,7 @@ use super::{
     data_definition::codegen_data_definition,
     double_operand::codegen_double_operand,
     generic::codegen_generic,
+    input_output::{codegen_input_output, codegen_input_output_load},
     shift::{codegen_shift_long, codegen_shift_short},
     short_value_immediate::codegen_short_value_immediate,
     single_operand::codegen_single_operand,
@@ -47,6 +48,18 @@ pub fn codegen(
         }
         Statement::ShiftShort(op, reg, dist) => codegen_shift_short(op, reg, *dist),
         Statement::ShiftLong(op, reg, dist) => codegen_shift_long(op, reg, *dist),
+        Statement::InputOutput(op, data_addr_syl, chan_expr) => {
+            codegen_input_output(op, data_addr_syl, chan_expr, cur_addr, label_table)
+        }
+        Statement::InputOutputLoad(buffer_addr_syl, chan_expr, range_addr_syl) => {
+            codegen_input_output_load(
+                buffer_addr_syl,
+                chan_expr,
+                range_addr_syl,
+                cur_addr,
+                label_table,
+            )
+        }
     }
 }
 

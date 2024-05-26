@@ -116,6 +116,7 @@ pub enum AssemblerErrorKind {
     ImmediateAddressingInvalid(Mnemonic),
     InvalidMaskWord(String),
     InvalidShiftDistance(String),
+    InvalidChannelExpression(String),
 
     // Code Generation
     BranchAddressOutOfRange(u64),
@@ -133,6 +134,8 @@ pub enum AssemblerErrorKind {
     InvalidBaseRegisterAddrSyl(BaseRegister),
     MaskWordOutOfRange(i128),
     ShiftDistanceOutOfRange(u64),
+    ChannelOutOfRange(u64),
+    FunctionCodeOutOfRange(u64),
 }
 
 #[derive(Debug)]
@@ -201,6 +204,9 @@ impl AssemblerError {
             AssemblerErrorKind::InvalidShiftDistance(arg) => {
                 format!("invalid shift distance: {}", arg)
             }
+            AssemblerErrorKind::InvalidChannelExpression(arg) => {
+                format!("invalid channel expression: {}", arg)
+            }
             AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(arg) => {
                 format!("unexpected characters at end of argument: \"{}\"", arg)
             }
@@ -254,6 +260,12 @@ impl AssemblerError {
             }
             AssemblerErrorKind::ShiftDistanceOutOfRange(dist) => {
                 format!("shift distance out of range: {}", dist)
+            }
+            AssemblerErrorKind::ChannelOutOfRange(chan) => {
+                format!("channel out of range: ({:#X}) {}", chan, chan)
+            }
+            AssemblerErrorKind::FunctionCodeOutOfRange(func) => {
+                format!("function code out of range: ({:#X}) {}", func, func)
             }
         }
     }

@@ -5,6 +5,7 @@ mod common;
 mod data_definition;
 mod double_operand;
 mod generic;
+mod input_output;
 mod shift;
 mod short_value_immediate;
 mod single_operand;

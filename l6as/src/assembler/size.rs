@@ -1,4 +1,6 @@
-use super::statements::{AddressSyllable, BranchLocation, DataDefinitionSize, Statement};
+use super::statements::{
+    AddressSyllable, BranchLocation, ChannelExpression, DataDefinitionSize, Statement,
+};
 
 /// Computes the size of a statement in memory (in words)
 pub fn statement_size(statement: &Statement, _cur_addr: u64) -> u64 {
@@ -16,6 +18,12 @@ pub fn statement_size(statement: &Statement, _cur_addr: u64) -> u64 {
         }
         Statement::ShiftShort(_op, _reg, _val) => 1,
         Statement::ShiftLong(_op, _reg, _val) => 1,
+        Statement::InputOutput(_op, data_addr_syl, chan_expr) => {
+            input_output_inst_size(data_addr_syl, chan_expr)
+        }
+        Statement::InputOutputLoad(buffer_addr_syl, chan_expr, range_addr_syl) => {
+            input_output_load_inst_size(buffer_addr_syl, chan_expr, range_addr_syl)
+        }
     }
 }
 
@@ -38,6 +46,25 @@ pub fn single_operand_inst_size(addr_syl: &AddressSyllable, mask: &Option<i128>)
 /// Computes the size of a Double Operand instruction
 pub fn double_operand_inst_size(addr_syl: &AddressSyllable, mask: &Option<i128>) -> u64 {
     1 + address_syl_extra_words(addr_syl) + mask_extra_words(mask)
+}
+
+/// Computes the size of a Input Output instruction
+pub fn input_output_inst_size(
+    data_addr_syl: &AddressSyllable,
+    chan_expr: &ChannelExpression,
+) -> u64 {
+    1 + address_syl_extra_words(data_addr_syl) + channel_expression_extra_words(chan_expr)
+}
+
+/// Computes the size of a Input Output Load instruction
+pub fn input_output_load_inst_size(
+    buffer_addr_syl: &AddressSyllable,
+    chan_expr: &ChannelExpression,
+    range_addr_syl: &AddressSyllable,
+) -> u64 {
+    1 + address_syl_extra_words(buffer_addr_syl)
+        + channel_expression_extra_words(chan_expr)
+        + address_syl_extra_words(range_addr_syl)
 }
 
 /// Computes amount of extra words used by a Branch location
@@ -70,5 +97,13 @@ pub fn mask_extra_words(mask: &Option<i128>) -> u64 {
     match mask {
         None => 0,
         Some(_) => 1,
+    }
+}
+
+/// Computes amount of extra words used by a Channel Expression
+pub fn channel_expression_extra_words(chan_expr: &ChannelExpression) -> u64 {
+    match chan_expr {
+        ChannelExpression::Immediate(_, _) => 1,
+        ChannelExpression::AddressSyllable(addr_syl) => 1 + address_syl_extra_words(&addr_syl),
     }
 }

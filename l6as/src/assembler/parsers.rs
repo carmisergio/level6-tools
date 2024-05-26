@@ -1,9 +1,10 @@
 use super::statements::{
     AddressExpression, AddressSyllable, BRelativeAddress, BRelativeAddressMode, BaseRegister,
-    BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, DataDefinitionSize,
-    DataRegister, DoubleOperandOpCode, GenericOpCode, ImmediateAddress, ImmediateAddressMode,
-    IncDec, Mnemonic, ModeControlRegister, PRelativeAddress, Register, ShiftLongOpCode,
-    ShiftShortOpCode, ShortValueImmediateOpCode, SingleOperandOpCode, Statement,
+    BranchLocation, BranchOnIndicatorsOpCode, BranchOnRegistersOpCode, ChannelExpression,
+    DataDefinitionSize, DataRegister, DoubleOperandOpCode, GenericOpCode, ImmediateAddress,
+    ImmediateAddressMode, IncDec, InputOutputOpCode, Mnemonic, ModeControlRegister,
+    PRelativeAddress, Register, ShiftLongOpCode, ShiftShortOpCode, ShortValueImmediateOpCode,
+    SingleOperandOpCode, Statement,
 };
 use crate::{assembler::statements::StatementKind, logging::AssemblerErrorKind};
 use nom::{
@@ -166,6 +167,8 @@ fn encapsulate_statement(
         StatementKind::DoubleOperandMode => encapsulate_double_operand_mode_statement(mnemo, args),
         StatementKind::ShiftShort => encapsulate_shift_short_statement(mnemo, args),
         StatementKind::ShiftLong => encapsulate_shift_long_statement(mnemo, args),
+        StatementKind::InputOutput => encapsulate_input_output_statement(mnemo, args),
+        StatementKind::InputOutputLoad => encapsulate_input_output_load_statement(mnemo, args),
     }
 }
 
@@ -311,6 +314,11 @@ fn match_mnemonic(input: &str) -> Result<Mnemonic, ()> {
         "DAL" => Ok(Mnemonic::DAL),
         "DOR" => Ok(Mnemonic::DOR),
         "DAR" => Ok(Mnemonic::DAR),
+
+        // Input/Output instructions
+        "IO" => Ok(Mnemonic::IO),
+        "IOH" => Ok(Mnemonic::IOH),
+        "IOLD" => Ok(Mnemonic::IOLD),
         _ => Err(()),
     }
 }
@@ -1063,6 +1071,94 @@ fn encapsulate_shift_long_statement(
     Ok(Statement::ShiftLong(op, reg, val))
 }
 
+fn encapsulate_input_output_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 2 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            2,
+            args.len(),
+        ));
+    }
+
+    // Get op code
+    let op = match mnemo {
+        Mnemonic::IO => InputOutputOpCode::IO,
+        Mnemonic::IOH => InputOutputOpCode::IOH,
+        _ => panic!("invalid OpCode for InputOutput"),
+    };
+
+    // Parse address syllable
+    let data_addr_syl = parse_address_syllable_arg(&args[0])?;
+
+    // Parse channel expression
+    let chan_expr = parse_channel_expression_arg(&args[1])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &data_addr_syl {
+        if let Register::Base(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    Ok(Statement::InputOutput(op, data_addr_syl, chan_expr))
+}
+
+fn encapsulate_input_output_load_statement(
+    mnemo: Mnemonic,
+    args: &[String],
+) -> Result<Statement, AssemblerErrorKind> {
+    // Check number of arguments
+    if args.len() != 3 {
+        return Err(AssemblerErrorKind::WrongNumberOfArguments(
+            mnemo,
+            3,
+            args.len(),
+        ));
+    }
+
+    // Parse data address syllable
+    let buffer_addr_syl = parse_address_syllable_arg(&args[0])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &buffer_addr_syl {
+        if let Register::Base(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    // Parse channel expression
+    let chan_expr = parse_channel_expression_arg(&args[1])?;
+
+    // Parse data address syllable
+    let range_addr_syl = parse_address_syllable_arg(&args[2])?;
+
+    // Check Register Addressing
+    if let AddressSyllable::RegisterAddressing(reg) = &range_addr_syl {
+        if let Register::Data(_) = reg {
+            return Err(AssemblerErrorKind::WrongRegisterType(
+                args[0].clone(),
+                mnemo,
+            ));
+        }
+    }
+
+    Ok(Statement::InputOutputLoad(
+        buffer_addr_syl,
+        chan_expr,
+        range_addr_syl,
+    ))
+}
+
 fn parse_hex_address_arg(input: &str) -> Result<u64, AssemblerErrorKind> {
     // Parse address
     let (input, address) = match parse_hex_u64(input) {
@@ -1255,14 +1351,7 @@ fn parse_definition_chunk_arg(input: &str) -> Result<Vec<i128>, AssemblerErrorKi
 // Address syllable
 fn parse_address_syllable_arg(input: &str) -> Result<AddressSyllable, AssemblerErrorKind> {
     // Parse address
-    let (input, value) = match alt((
-        parse_address_syllable_register_addressing,
-        parse_address_syllable_immediate_operand,
-        parse_address_syllable_immediate_addressing,
-        parse_address_syllable_prelative_addressing,
-        parse_address_syllable_brelative_addressing,
-    ))(input)
-    {
+    let (input, value) = match parse_address_syllable(input) {
         Ok(address) => address,
         Err(_) => return Err(AssemblerErrorKind::InvalidAddressSyllable(input.to_owned())),
     };
@@ -1275,6 +1364,16 @@ fn parse_address_syllable_arg(input: &str) -> Result<AddressSyllable, AssemblerE
     }
 
     Ok(value)
+}
+
+fn parse_address_syllable(input: &str) -> IResult<&str, AddressSyllable> {
+    alt((
+        parse_address_syllable_register_addressing,
+        parse_address_syllable_immediate_operand,
+        parse_address_syllable_immediate_addressing,
+        parse_address_syllable_prelative_addressing,
+        parse_address_syllable_brelative_addressing,
+    ))(input)
 }
 
 fn parse_address_syllable_register_addressing(input: &str) -> IResult<&str, AddressSyllable> {
@@ -1545,6 +1644,42 @@ pub fn parse_escaped_string_contents(input: &str) -> IResult<&str, String> {
     )(input)
 }
 
+fn parse_channel_expression_arg(input: &str) -> Result<ChannelExpression, AssemblerErrorKind> {
+    // Parse address
+    let (input, value) = match alt((
+        map(parse_channel_expression_immediate, |(chan, func)| {
+            ChannelExpression::Immediate(chan, func)
+        }),
+        map(parse_address_syllable, |addr_syl| {
+            ChannelExpression::AddressSyllable(addr_syl)
+        }),
+    ))(input)
+    {
+        Ok(address) => address,
+        Err(_) => {
+            return Err(AssemblerErrorKind::InvalidChannelExpression(
+                input.to_owned(),
+            ))
+        }
+    };
+
+    // Check for extra characters
+    if input.len() > 0 {
+        return Err(AssemblerErrorKind::UnexpectedCharactersAtEndOfArgument(
+            input.to_owned(),
+        ));
+    }
+
+    Ok(value)
+}
+
+fn parse_channel_expression_immediate(input: &str) -> IResult<&str, (u64, u64)> {
+    preceded(
+        tag("@"),
+        separated_pair(parse_hex_u64, tag("."), parse_hex_u64),
+    )(input)
+}
+
 pub fn parse_escaped_block(input: &str) -> IResult<&str, String> {
     map(
         preceded(
@@ -1593,7 +1728,6 @@ fn parse_string_literal_block(input: &str) -> IResult<&str, String> {
 
 fn parse_string_escaped_block(input: &str) -> IResult<&str, String> {
     let (input, (escaper, escaped)) = tuple((tag("\\"), take(1 as usize)))(input)?;
-    // let (input, (escaper, escaped)) = tuple((tag( as usize), take(1 as usize)))(input)?;
     Ok((input, escaper.to_owned() + escaped))
 }
 
@@ -2090,6 +2224,30 @@ mod tests {
         ];
         for (input, exp_output) in tests {
             let output = parse_address_syllable_arg(input).unwrap();
+            assert_eq!(output, exp_output);
+        }
+    }
+
+    #[test]
+    fn parse_channel_expression_arg_succ() {
+        let tests = [
+            ("@0x20.0x18", ChannelExpression::Immediate(0x20, 0x18)),
+            ("@0xAB.0xFD", ChannelExpression::Immediate(0xAB, 0xFD)),
+            (
+                "=123",
+                ChannelExpression::AddressSyllable(AddressSyllable::ImmediateOperand(123)),
+            ),
+            (
+                "<0x1000",
+                ChannelExpression::AddressSyllable(AddressSyllable::ImmediateAddressing(
+                    ImmediateAddressMode::Direct(ImmediateAddress::Simple(
+                        AddressExpression::Immediate(0x1000),
+                    )),
+                )),
+            ),
+        ];
+        for (input, exp_output) in tests {
+            let output = parse_channel_expression_arg(input).unwrap();
             assert_eq!(output, exp_output);
         }
     }

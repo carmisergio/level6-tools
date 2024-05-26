@@ -140,6 +140,11 @@ pub enum Mnemonic {
     DAL,
     DOR,
     DAR,
+
+    // Input/Output instructions
+    IO,
+    IOH,
+    IOLD,
 }
 
 impl Mnemonic {
@@ -285,6 +290,11 @@ impl Mnemonic {
             Self::DAL => StatementKind::ShiftLong,
             Self::DOR => StatementKind::ShiftLong,
             Self::DAR => StatementKind::ShiftLong,
+
+            // Input/Output instructions
+            Self::IO => StatementKind::InputOutput,
+            Self::IOH => StatementKind::InputOutput,
+            Self::IOLD => StatementKind::InputOutputLoad,
         }
     }
 }
@@ -430,6 +440,11 @@ impl Mnemonic {
             Self::DAL => "DAL",
             Self::DOR => "DOR",
             Self::DAR => "DAR",
+
+            // Input/Output instructions
+            Self::IO => "IO",
+            Self::IOH => "IOH",
+            Self::IOLD => "IOLD",
         }
     }
 }
@@ -462,6 +477,8 @@ pub enum StatementKind {
     DoubleOperandMode,
     ShiftShort,
     ShiftLong,
+    InputOutput,
+    InputOutputLoad,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -476,6 +493,8 @@ pub enum Statement {
     Generic(GenericOpCode),
     ShiftShort(ShiftShortOpCode, DataRegister, u64),
     ShiftLong(ShiftLongOpCode, DataRegister, u64),
+    InputOutput(InputOutputOpCode, AddressSyllable, ChannelExpression),
+    InputOutputLoad(AddressSyllable, ChannelExpression, AddressSyllable),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -634,6 +653,12 @@ pub enum ShiftLongOpCode {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum InputOutputOpCode {
+    IO,
+    IOH,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum BranchLocation {
     Absolute(AddressExpression),
     LongDisplacement(AddressExpression),
@@ -733,4 +758,10 @@ pub enum BRelativeAddress {
 pub enum IncDec {
     Increment,
     Decrement,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ChannelExpression {
+    Immediate(u64, u64),
+    AddressSyllable(AddressSyllable),
 }
